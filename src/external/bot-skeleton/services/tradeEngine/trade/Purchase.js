@@ -21,9 +21,16 @@ export default Engine =>
             }
 
             this.isPurchaseInProgress = true;
-            return this.executePurchase(contract_type).finally(() => {
+            try {
+                return Promise.resolve(this.executePurchase(contract_type)).finally(() => {
+                    this.isPurchaseInProgress = false;
+                });
+            } catch (error) {
+                // executePurchase can throw before it returns a promise (for example,
+                // when no matching proposal is available). Always release the lock.
                 this.isPurchaseInProgress = false;
-            });
+                return Promise.reject(error);
+            }
         }
 
         executePurchase(contract_type) {
