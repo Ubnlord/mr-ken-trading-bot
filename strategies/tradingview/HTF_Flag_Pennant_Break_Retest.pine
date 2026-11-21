@@ -122,9 +122,13 @@ var int activeQuality = na
 var string activePattern = "—"
 var float activeStop = na
 var float activeTarget = na
+var line upperTrendLine = na
+var line lowerTrendLine = na
 
 upperLine = ta.linreg(high[1], patternBars, 0)
 lowerLine = ta.linreg(low[1], patternBars, 0)
+upperStart = ta.linreg(high[1], patternBars, patternBars - 1)
+lowerStart = ta.linreg(low[1], patternBars, patternBars - 1)
 breakBody = math.abs(close - open)
 canScan = isH1 and barstate.isconfirmed and state == 0 and strategy.position_size == 0 and sessionOk and spreadOk and dailyOk
 
@@ -156,6 +160,16 @@ if canScan and state == 0 and (bullPattern or bearPattern)
     activeQuality := quality
     activePattern := patternName
 
+if canScan and (bullPattern or bearPattern)
+    if not na(upperTrendLine)
+        line.delete(upperTrendLine)
+    if not na(lowerTrendLine)
+        line.delete(lowerTrendLine)
+    upperTrendLine := line.new(bar_index - patternBars, upperStart, bar_index - 1, upperLine,
+         extend=extend.right, color=color.new(color.orange, 0), width=2)
+    lowerTrendLine := line.new(bar_index - patternBars, lowerStart, bar_index - 1, lowerLine,
+         extend=extend.right, color=color.new(color.aqua, 0), width=2)
+
 if state == 1 and barstate.isconfirmed
     if bar_index - breakoutBar > retestExpiry or (direction == 1 and close < breakoutLevel - atr * retestAtr * 2) or (direction == -1 and close > breakoutLevel + atr * retestAtr * 2)
         state := 0
@@ -174,7 +188,8 @@ if state == 2 and barstate.isconfirmed and strategy.position_size == 0
         riskDistance = close - activeStop
         riskCash = strategy.equity * riskPct / 100
         pointValue = math.max(syminfo.pointvalue, 0.0000001)
-        qty = riskDistance > syminfo.mintick ? riskCash / (riskDistance * pointValue) : 0
+        lossPerUnit = strategy.convert_to_account(riskDistance * pointValue)
+        qty = riskDistance > syminfo.mintick and lossPerUnit > 0 ? riskCash / lossPerUnit : 0
         activeTarget := close + riskDistance * rr
         if qty > 0 and dailyOk and sessionOk and spreadOk
             strategy.entry("Long", strategy.long, qty=qty, comment=activePattern)
@@ -203,8 +218,8 @@ if strategy.position_size < 0 and not na(activeStop) and not na(activeTarget)
     strategy.exit("Short SL/TP", "Short", stop=activeStop, limit=activeTarget)
 
 // Visuals: prior-window regression boundaries, breakout/retest level, live SL/TP and HTF bias.
-plot(showLevels and state > 0 ? activeUpper : na, "Pattern upper boundary", color=color.new(color.orange, 0), linewidth=2)
-plot(showLevels and state > 0 ? activeLower : na, "Pattern lower boundary", color=color.new(color.aqua, 0), linewidth=2)
+plot(showLevels and (state > 0 or activePattern != "—") ? activeUpper : na, "Pattern upper boundary", color=color.new(color.orange, 0), linewidth=1)
+plot(showLevels and (state > 0 or activePattern != "—") ? activeLower : na, "Pattern lower boundary", color=color.new(color.aqua, 0), linewidth=1)
 plot(showLevels and state > 0 ? breakoutLevel : na, "Breakout / retest level", color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
 plot(showLevels and strategy.position_size != 0 ? activeStop : na, "Stop loss", color=color.red, linewidth=2, style=plot.style_linebr)
 plot(showLevels and strategy.position_size != 0 ? activeTarget : na, "Take profit", color=color.lime, linewidth=2, style=plot.style_linebr)
