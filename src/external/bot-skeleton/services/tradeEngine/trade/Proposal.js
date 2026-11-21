@@ -14,7 +14,15 @@ export default Engine =>
             // This will ensure the bot doesn't mistakenly purchase the wrong proposal.
             this.regeneratePurchaseReference();
             this.trade_option = trade_option;
-            this.proposal_templates = tradeOptionToProposal(trade_option, this.getPurchaseReference());
+            const hasTechnicalStrategyTrade = window.Blockly?.derivWorkspace
+                ?.getAllBlocks(true)
+                .some(block => block.type === 'technical_strategy_trade' && !block.disabled);
+            // Technical signal execution can choose either direction, so prepare both
+            // matching Rise/Fall proposals while preserving the user's stake/duration settings.
+            const proposalOptions = hasTechnicalStrategyTrade
+                ? { ...trade_option, contractTypes: ['CALL', 'PUT'] }
+                : trade_option;
+            this.proposal_templates = tradeOptionToProposal(proposalOptions, this.getPurchaseReference());
             this.renewProposalsOnPurchase();
         }
 
