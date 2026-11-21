@@ -121,11 +121,21 @@ export default Engine =>
                 ? Number(granularity)
                 : 300;
             const candles = await this.getOhlc({ granularity: validGranularity });
-            // The newest candle may still be forming. Only closed candles are used.
-            const closed = (Array.isArray(candles) ? candles : []).slice(0, -1).filter(candle =>
-                ['open', 'high', 'low', 'close'].every(key => Number.isFinite(Number(candle?.[key])))
-            );
-            if (closed.length < 35) return 'WAIT';
+            const selected = String(strategy).toUpperCase();
+            // Deriv returns candles oldest-to-newest; the final candle is still forming.
+            // Reject malformed candles rather than calculating a signal from partial data.
+            const closed = (Array.isArray(candles) ? candles : []).slice(0, -1).filter(candle => {
+                const values = ['open', 'high', 'low', 'close'].map(key => Number(candle?.[key]));
+                return values.every(Number.isFinite) && values[1] >= values[2];
+            });
+            const minimumCandles = {
+                EMA_RSI: 50,
+                MACD: 35,
+                RSI_REVERSAL: 16,
+                BOLLINGER: 21,
+                BREAKOUT: 21,
+            }[selected];
+            if (!minimumCandles || closed.length < minimumCandles) return 'WAIT';
 
             const closes = closed.map(candle => Number(candle.close));
             const last = closes.length - 1;
@@ -163,7 +173,6 @@ export default Engine =>
                 }
                 return output;
             };
-            const selected = String(strategy).toUpperCase();
             const fast = ema(closes, 20);
             const slow = ema(closes, 50);
             const strength = rsi(closes, 14);
