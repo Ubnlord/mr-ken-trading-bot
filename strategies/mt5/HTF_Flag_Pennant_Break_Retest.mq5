@@ -106,6 +106,42 @@ double RegressionAtLast(const MqlRates &rates[], int first, int count, bool useH
    return intercept+slope*(count-1);
 }
 
+double RegressionAtFirst(const MqlRates &rates[], int first, int count, bool useHigh)
+{
+   double slope=RegressionSlope(rates,first,count,useHigh);
+   double sum=0.0;
+   for(int j=0;j<count;j++)
+   {
+      int idx=first+count-1-j;
+      sum += (useHigh ? rates[idx].high : rates[idx].low) - slope*j;
+   }
+   return sum/count;
+}
+
+void DrawTrend(const string name, datetime t1, double p1, datetime t2, double p2, color clr)
+{
+   ObjectDelete(0,name);
+   if(ObjectCreate(0,name,OBJ_TREND,0,t1,p1,t2,p2))
+   {
+      ObjectSetInteger(0,name,OBJPROP_COLOR,clr);
+      ObjectSetInteger(0,name,OBJPROP_WIDTH,2);
+      ObjectSetInteger(0,name,OBJPROP_RAY_RIGHT,true);
+      ObjectSetInteger(0,name,OBJPROP_SELECTABLE,false);
+   }
+}
+
+void DrawLevel(const string name, double price, color clr, ENUM_LINE_STYLE style=STYLE_DASH)
+{
+   ObjectDelete(0,name);
+   if(ObjectCreate(0,name,OBJ_HLINE,0,0,price))
+   {
+      ObjectSetInteger(0,name,OBJPROP_COLOR,clr);
+      ObjectSetInteger(0,name,OBJPROP_STYLE,style);
+      ObjectSetInteger(0,name,OBJPROP_WIDTH,1);
+      ObjectSetInteger(0,name,OBJPROP_SELECTABLE,false);
+   }
+}
+
 bool IsNewBar()
 {
    datetime t=iTime(_Symbol,PERIOD_H1,0);
@@ -232,6 +268,10 @@ bool FindPattern(const MqlRates &r[], int bias, double atr,
 
    upper=RegressionAtLast(r,1,n,true);
    lower=RegressionAtLast(r,1,n,false);
+   double upperStart=RegressionAtFirst(r,1,n,true);
+   double lowerStart=RegressionAtFirst(r,1,n,false);
+   DrawTrend("MK_Flag_Upper_"+_Symbol+"_"+(string)InpMagicNumber,r[n].time,upperStart,r[1].time,upper,clrOrange);
+   DrawTrend("MK_Flag_Lower_"+_Symbol+"_"+(string)InpMagicNumber,r[n].time,lowerStart,r[1].time,lower,clrAqua);
    double impulseScore=MathMin(30.0,30.0*impulse/(InpImpulseATR*atrAtImpulse*1.5));
    double pullbackScore=MathMax(0.0,25.0*(1.0-MathMin(retrace,1.0)));
    double compactScore=MathMax(0.0,25.0*(1.0-MathMin(height/(atr*InpMaxPatternATR),1.0)));
@@ -273,14 +313,20 @@ bool PlaceTrade(int direction, double entry, double stop)
    trade.SetDeviationInPoints(20);
    bool ok=(direction==1 ? trade.Buy(volume,_Symbol,0.0,stop,target,g_pattern) :
                             trade.Sell(volume,_Symbol,0.0,stop,target,g_pattern));
-   if(ok) g_entriesToday++;
+   if(ok)
+   {
+      g_entriesToday++;
+      DrawLevel("MK_Stop_"+_Symbol+"_"+(string)InpMagicNumber,stop,clrTomato);
+      DrawLevel("MK_Target_"+_Symbol+"_"+(string)InpMagicNumber,target,clrLime);
+      Comment(g_pattern," | Quality ",g_quality,"/100 | Risk ",DoubleToString(InpRiskPercent,2),"% | RR 1:",DoubleToString(InpRewardRisk,1));
+   }
    else Print("Order rejected: ",trade.ResultRetcode()," ",trade.ResultRetcodeDescription());
    return ok;
 }
 
 int OnInit()
 {
-   if(_Period!=PERIOD_H1)
+   if(_Period!=PERIOD_H1 || InpPatternBars<5 || InpImpulseBars<3)
    {
       Print("Attach this EA to an H1 chart.");
       return INIT_PARAMETERS_INCORRECT;
@@ -337,6 +383,7 @@ void OnTick()
          g_direction=1; g_breakoutLevel=upper; g_barsAfterBreakout=0;
          g_quality=quality; g_pattern=(flag ? "Bull Flag" : "Bull Pennant");
          g_state=WAIT_RETEST;
+         DrawLevel("MK_Breakout_"+_Symbol+"_"+(string)InpMagicNumber,g_breakoutLevel,clrGold);
          Print(g_pattern," breakout confirmed. Quality ",quality);
       }
       else if(bias==-1 && rates[0].close<lower)
@@ -344,6 +391,7 @@ void OnTick()
          g_direction=-1; g_breakoutLevel=lower; g_barsAfterBreakout=0;
          g_quality=quality; g_pattern=(flag ? "Bear Flag" : "Bear Pennant");
          g_state=WAIT_RETEST;
+         DrawLevel("MK_Breakout_"+_Symbol+"_"+(string)InpMagicNumber,g_breakoutLevel,clrGold);
          Print(g_pattern," breakout confirmed. Quality ",quality);
       }
       return;
@@ -380,6 +428,8 @@ void OnTick()
 
    if(g_state==WAIT_CONFIRMATION)
    {
+      g_barsAfterBreakout++;
+      if(g_barsAfterBreakout>InpRetestExpiryBars) { g_state=WAIT_PATTERN; return; }
       double body=MathAbs(rates[0].close-rates[0].open);
       if(body<atr*InpConfirmBodyATR) return;
       if(!DailyGuardOK() || !SessionOK() || !SpreadOK()) return;
