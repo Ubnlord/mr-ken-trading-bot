@@ -209,7 +209,8 @@ bool FindPattern(const MqlRates &r[], int bias, double atr,
    double bullImpulse=r[impulseEnd].close-r[origin].close;
    double bearImpulse=r[origin].close-r[impulseEnd].close;
    double impulse=(bias==1 ? bullImpulse : bearImpulse);
-   double atrAtImpulse=atr;
+   double atrAtImpulse=0.0;
+   if(!ReadOne(hATR,0,InpPatternBars+1,atrAtImpulse) || atrAtImpulse<=0) return false;
    if(impulse<atrAtImpulse*InpImpulseATR) return false;
    double retrace=height/impulse;
    if(retrace>InpMaxRetracement) return false;
@@ -231,7 +232,7 @@ bool FindPattern(const MqlRates &r[], int bias, double atr,
 
    upper=RegressionAtLast(r,1,n,true);
    lower=RegressionAtLast(r,1,n,false);
-   double impulseScore=MathMin(30.0,30.0*impulse/(InpImpulseATR*atr*1.5));
+   double impulseScore=MathMin(30.0,30.0*impulse/(InpImpulseATR*atrAtImpulse*1.5));
    double pullbackScore=MathMax(0.0,25.0*(1.0-MathMin(retrace,1.0)));
    double compactScore=MathMax(0.0,25.0*(1.0-MathMin(height/(atr*InpMaxPatternATR),1.0)));
    quality=(int)MathRound(MathMin(100.0,impulseScore+pullbackScore+compactScore+20.0));
