@@ -202,7 +202,8 @@ if state == 2 and barstate.isconfirmed and strategy.position_size == 0
         riskDistance = activeStop - close
         riskCash = strategy.equity * riskPct / 100
         pointValue = math.max(syminfo.pointvalue, 0.0000001)
-        qty = riskDistance > syminfo.mintick ? riskCash / (riskDistance * pointValue) : 0
+        lossPerUnit = strategy.convert_to_account(riskDistance * pointValue)
+        qty = riskDistance > syminfo.mintick and lossPerUnit > 0 ? riskCash / lossPerUnit : 0
         activeTarget := close - riskDistance * rr
         if qty > 0 and dailyOk and sessionOk and spreadOk
             strategy.entry("Short", strategy.short, qty=qty, comment=activePattern)
