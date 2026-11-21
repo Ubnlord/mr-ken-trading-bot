@@ -104,8 +104,7 @@ export const StatisticsSummary = ({
             />
             <StatisticsTile title={localize('No. of runs')} alignment='top' content={number_of_runs} />
             <StatisticsTile title={localize('Contracts lost')} alignment='bottom' content={lost_contracts} />
-            <StatisticsTile title={localize('Contracts won')} alignment='bottom' content={won_contracts} />
-            <StatisticsTile title={localize('Win rate')} alignment='bottom' content={`${win_rate}%`} />
+            <StatisticsTile title={localize('Wins / win rate')} alignment='bottom' content={`${won_contracts} / ${win_rate}%`} />
             <StatisticsTile
                 title={localize('Total profit/loss')}
                 content={<Money amount={total_profit} currency={currency} has_sign show_currency />}
