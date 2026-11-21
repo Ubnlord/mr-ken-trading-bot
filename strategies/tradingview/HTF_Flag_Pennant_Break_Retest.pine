@@ -181,36 +181,39 @@ if state == 1 and barstate.isconfirmed
         state := 2
 
 if state == 2 and barstate.isconfirmed and strategy.position_size == 0
-    bullishConfirm = direction == 1 and close > open and close - open >= atr * confirmBodyAtr and close > breakoutLevel
-    bearishConfirm = direction == -1 and close < open and open - close >= atr * confirmBodyAtr and close < breakoutLevel
-    if bullishConfirm
-        activeStop := retestSwing - atr * slBufferAtr
-        riskDistance = close - activeStop
-        riskCash = strategy.equity * riskPct / 100
-        pointValue = math.max(syminfo.pointvalue, 0.0000001)
-        lossPerUnit = strategy.convert_to_account(riskDistance * pointValue)
-        qty = riskDistance > syminfo.mintick and lossPerUnit > 0 ? riskCash / lossPerUnit : 0
-        activeTarget := close + riskDistance * rr
-        if qty > 0 and dailyOk and sessionOk and spreadOk
-            strategy.entry("Long", strategy.long, qty=qty, comment=activePattern)
-            strategy.exit("Long SL/TP", "Long", stop=activeStop, limit=activeTarget)
-            entriesToday += 1
-            label.new(bar_index, low, "BUY • " + activePattern + "\nQuality " + str.tostring(activeQuality) + "/100", style=label.style_label_up, color=color.new(color.green, 0), textcolor=color.white)
+    if bar_index - breakoutBar > retestExpiry
         state := 0
-    else if bearishConfirm
-        activeStop := retestSwing + atr * slBufferAtr
-        riskDistance = activeStop - close
-        riskCash = strategy.equity * riskPct / 100
-        pointValue = math.max(syminfo.pointvalue, 0.0000001)
-        lossPerUnit = strategy.convert_to_account(riskDistance * pointValue)
-        qty = riskDistance > syminfo.mintick and lossPerUnit > 0 ? riskCash / lossPerUnit : 0
-        activeTarget := close - riskDistance * rr
-        if qty > 0 and dailyOk and sessionOk and spreadOk
-            strategy.entry("Short", strategy.short, qty=qty, comment=activePattern)
-            strategy.exit("Short SL/TP", "Short", stop=activeStop, limit=activeTarget)
-            entriesToday += 1
-            label.new(bar_index, high, "SELL • " + activePattern + "\nQuality " + str.tostring(activeQuality) + "/100", style=label.style_label_down, color=color.new(color.red, 0), textcolor=color.white)
-        state := 0
+    else
+        bullishConfirm = direction == 1 and close > open and close - open >= atr * confirmBodyAtr and close > breakoutLevel
+        bearishConfirm = direction == -1 and close < open and open - close >= atr * confirmBodyAtr and close < breakoutLevel
+        if bullishConfirm
+            activeStop := retestSwing - atr * slBufferAtr
+            riskDistance = close - activeStop
+            riskCash = strategy.equity * riskPct / 100
+            pointValue = math.max(syminfo.pointvalue, 0.0000001)
+            lossPerUnit = strategy.convert_to_account(riskDistance * pointValue)
+            qty = riskDistance > syminfo.mintick and lossPerUnit > 0 ? riskCash / lossPerUnit : 0
+            activeTarget := close + riskDistance * rr
+            if qty > 0 and dailyOk and sessionOk and spreadOk
+                strategy.entry("Long", strategy.long, qty=qty, comment=activePattern)
+                strategy.exit("Long SL/TP", "Long", stop=activeStop, limit=activeTarget)
+                entriesToday += 1
+                label.new(bar_index, low, "BUY • " + activePattern + "\nQuality " + str.tostring(activeQuality) + "/100", style=label.style_label_up, color=color.new(color.green, 0), textcolor=color.white)
+            state := 0
+        else if bearishConfirm
+            activeStop := retestSwing + atr * slBufferAtr
+            riskDistance = activeStop - close
+            riskCash = strategy.equity * riskPct / 100
+            pointValue = math.max(syminfo.pointvalue, 0.0000001)
+            lossPerUnit = strategy.convert_to_account(riskDistance * pointValue)
+            qty = riskDistance > syminfo.mintick and lossPerUnit > 0 ? riskCash / lossPerUnit : 0
+            activeTarget := close - riskDistance * rr
+            if qty > 0 and dailyOk and sessionOk and spreadOk
+                strategy.entry("Short", strategy.short, qty=qty, comment=activePattern)
+                strategy.exit("Short SL/TP", "Short", stop=activeStop, limit=activeTarget)
+                entriesToday += 1
+                label.new(bar_index, high, "SELL • " + activePattern + "\nQuality " + str.tostring(activeQuality) + "/100", style=label.style_label_down, color=color.new(color.red, 0), textcolor=color.white)
+            state := 0
 
 // Maintain protective orders while a position is open.
 if strategy.position_size > 0 and not na(activeStop) and not na(activeTarget)
