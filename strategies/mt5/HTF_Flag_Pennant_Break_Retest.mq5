@@ -39,6 +39,8 @@ input double InpMaxDailyLossPercent = 2.0; // 0 disables
 input int InpMaxTradesPerDay = 3;           // 0 disables
 
 input int InpMaxSpreadPoints = 30;
+input double InpMinATRPoints = 0.0; // 0 disables
+input double InpMaxATRPoints = 0.0; // 0 disables
 input bool InpUseSessionFilter = false;
 input int InpSessionStartHour = 7; // broker/server time
 input int InpSessionEndHour = 17;  // broker/server time
@@ -205,8 +207,7 @@ bool HasOurPosition()
    {
       ulong ticket=PositionGetTicket(i);
       if(ticket==0) continue;
-      if(PositionGetString(POSITION_SYMBOL)==_Symbol &&
-         (ulong)PositionGetInteger(POSITION_MAGIC)==InpMagicNumber) return true;
+      if(PositionGetString(POSITION_SYMBOL)==_Symbol) return true;
    }
    return false;
 }
@@ -365,6 +366,10 @@ void OnTick()
 
    double atr;
    if(!GetATR(atr)) return;
+   double point=SymbolInfoDouble(_Symbol,SYMBOL_POINT);
+   double atrPoints=atr/point;
+   if((InpMinATRPoints>0 && atrPoints<InpMinATRPoints) ||
+      (InpMaxATRPoints>0 && atrPoints>InpMaxATRPoints)) return;
    int bias=GetBias();
    if(HasOurPosition()) return;
 
