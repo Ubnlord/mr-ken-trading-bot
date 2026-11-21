@@ -123,6 +123,14 @@ When assembled by the App Builder, these are configured for you (logo upload, co
 font, and app name are injected at deploy time).
 
 
+## Technical signal auto-trading block
+
+The Blockly **Purchase conditions** toolbox includes an **Auto trade technical signal** block. It can evaluate EMA 20/50 + RSI, MACD crossover, RSI reversal, Bollinger Bands reversal, or a 20-candle breakout using completed Deriv candles on 1-minute through 1-day timeframes. When a fresh CALL or PUT signal is detected, it submits that direction through the existing purchase engine. When the signal is WAIT, it does not buy.
+
+When proposal-based purchasing is enabled (for example, when a Payout block is used), the engine prepares both CALL and PUT proposals so either signal can select its matching proposal. A persistent signal is not repeatedly purchased: the strategy must return to WAIT or reverse direction before the same direction can trigger again. Existing trade limits and purchase-in-progress protections remain in place.
+
+**Important:** This is an experimental strategy feature, not evidence of profitability. Use a Deriv demo account first, choose a compatible Rise/Fall trade definition, verify stake and duration settings, and test each strategy/timeframe before considering any live use. The bot still runs in the browser; this block does not make the bot run 24/7 when the website is closed.
+
 ## Forex strategy package: HTF Flag/Pennant Break-and-Retest
 
 A separate Forex strategy package is available in [`strategies/`](strategies/README.md). It includes a TradingView Pine Script v6 strategy, an MT5 Expert Advisor source file, and a shared rule specification. It does not replace the existing Deriv Blockly/options bot or route Forex orders through Deriv's options API.
