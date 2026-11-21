@@ -48,10 +48,16 @@ maxSpreadTicks = input.float(5, "Maximum allowed spread (ticks)", minval=0, step
 showLevels = input.bool(true, "Draw setup and trade levels", group=G_FILTER)
 
 // Higher-timeframe values are sampled from the last completed HTF candle.
-[htfClose, htfFast, htfSlow, htfFastPrev, htfAdx] = request.security(
+f_completed_htf_adx() =>
+    [diPlus, diMinus, adxValue] = ta.dmi(adxLen, adxLen)
+    adxValue[1]
+
+[htfClose, htfFast, htfSlow, htfFastPrev] = request.security(
      syminfo.tickerid, biasTf,
      [close[1], ta.ema(close, fastLen)[1], ta.ema(close, slowLen)[1],
-      ta.ema(close, fastLen)[slopeLookback + 1], ta.dmi(adxLen, adxLen)[2][1]],
+      ta.ema(close, fastLen)[slopeLookback + 1]],
+     gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+htfAdx = request.security(syminfo.tickerid, biasTf, f_completed_htf_adx(),
      gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
 
 bullBias = htfClose > htfFast and htfFast > htfSlow and htfFast > htfFastPrev and (not useAdx or htfAdx >= minAdx)
