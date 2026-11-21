@@ -27,7 +27,7 @@ export default Engine =>
 
             let delay_index = 1;
 
-            return new Promise(resolve => {
+            return new Promise((resolve, reject) => {
                 const onContractSold = sell_response => {
                     delay_index = 1;
 
@@ -105,7 +105,7 @@ export default Engine =>
                     // eslint-disable-next-line no-promise-executor-return
                     return doUntilDone(sellContractAndGetContractInfo, errors_to_ignore)
                         .then(sell_response => onContractSold(sell_response))
-                        .catch(error => error);
+                        .catch(error => reject(error));
                 }
 
                 // If above checkbox not checked, try to recover from sell error.
@@ -118,7 +118,9 @@ export default Engine =>
                     recoverFn,
                     errors_to_ignore,
                     delay_index++
-                ).then(sell_response => onContractSold(sell_response));
+                )
+                    .then(sell_response => onContractSold(sell_response))
+                    .catch(error => reject(error));
             });
         }
     };
