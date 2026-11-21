@@ -248,8 +248,8 @@ bool FindPattern(const MqlRates &r[], int bias, double atr,
    double atrAtImpulse=0.0;
    if(!ReadOne(hATR,0,InpPatternBars+1,atrAtImpulse) || atrAtImpulse<=0) return false;
    if(impulse<atrAtImpulse*InpImpulseATR) return false;
-   double retrace=height/impulse;
-   if(retrace>InpMaxRetracement) return false;
+   double retrace=(bias==1 ? (r[impulseEnd].high-lo) : (hi-r[impulseEnd].low))/impulse;
+   if(retrace<0.0 || retrace>InpMaxRetracement) return false;
 
    double upperSlope=RegressionSlope(r,1,n,true);
    double lowerSlope=RegressionSlope(r,1,n,false);
