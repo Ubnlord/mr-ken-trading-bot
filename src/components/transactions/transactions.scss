@@ -94,6 +94,13 @@
         height: 6.4rem;
         align-items: center;
 
+        @include mobile-or-tablet-screen {
+            grid-template-columns: minmax(0, 0.75fr) minmax(0, 1fr) minmax(0, 1fr);
+            height: 5.6rem;
+            padding: 0.6rem 1rem;
+            font-size: 1.1rem;
+        }
+
         $header-grid-items: (string.unquote('type'), string.unquote('spot'), string.unquote('profit'));
 
         &-column {
@@ -158,6 +165,11 @@
         grid-template-areas: ('trade-type entry-spot stake' 'trade-type exit-spot  profit');
         padding: 0.8rem 0;
 
+        @include mobile-or-tablet-screen {
+            grid-template-columns: minmax(0, 0.75fr) minmax(0, 1fr) minmax(0, 1fr);
+            font-size: 1.1rem;
+        }
+
         @include rtl {
             direction: rtl;
         }
@@ -168,6 +180,10 @@
             cursor: pointer;
             position: relative;
             border-top: 1px solid var(--general-section-2);
+
+            @include mobile-or-tablet-screen {
+                padding: 0 1rem;
+            }
 
             &:hover {
                 background-color: var(--state-hover);
@@ -248,6 +264,8 @@
     &__cell {
         display: flex;
         align-items: center;
+        min-width: 0;
+        overflow: hidden;
         color: var(--text-general);
     }
 
