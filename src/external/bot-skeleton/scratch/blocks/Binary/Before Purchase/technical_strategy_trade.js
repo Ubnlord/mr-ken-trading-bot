@@ -56,5 +56,5 @@ window.Blockly.Blocks.technical_strategy_trade = {
 window.Blockly.JavaScript.javascriptGenerator.forBlock.technical_strategy_trade = block => {
     const strategy = block.getFieldValue('STRATEGY');
     const granularity = block.getFieldValue('GRANULARITY');
-    return `Bot.executeStrategyTrade('${strategy}', ${granularity});\\n`;
+    return `Bot.executeStrategyTrade('${strategy}', ${granularity});\n`;
 };
