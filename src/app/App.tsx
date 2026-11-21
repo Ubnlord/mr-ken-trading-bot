@@ -29,7 +29,12 @@ const LanguageHandler = ({ children }: { children: React.ReactNode }) => {
 // The static preview build is served under /bot/preview (see rsbuild.config.ts
 // assetPrefix), so React Router must resolve routes under that prefix. Standalone
 // partner deploys are served at the root, so no basename there.
-const routerBasename = isPreviewMode() ? PREVIEW_BASE_PATH : undefined;
+const routerBasename =
+    process.env.NEXT_PUBLIC_GITHUB_PAGES === 'true'
+        ? '/mr-ken-trading-bot'
+        : isPreviewMode()
+          ? PREVIEW_BASE_PATH
+          : undefined;
 
 const router = createBrowserRouter(
     createRoutesFromElements(
@@ -83,7 +88,10 @@ function App() {
             try {
                 const authInfo = await handleOAuthCallback(window.location.href, {
                     clientId: process.env.NEXT_PUBLIC_DERIV_APP_ID || '',
-                    redirectUri: window.location.origin,
+                    redirectUri:
+                        process.env.NEXT_PUBLIC_GITHUB_PAGES === 'true'
+                            ? `${window.location.origin}/mr-ken-trading-bot/`
+                            : window.location.origin,
                     scopes: 'trade',
                 });
 
