@@ -78,10 +78,26 @@ export const useSmartChartAdaptor = (): UseSmartChartAdaptorReturn => {
         };
     }, []);
 
-    // Initialize adapter - runs once when chart_api.api is available
+    // Initialize the chart API explicitly before building the adapter.
+    // Previously this effect only checked chart_api.api once on mount. If the
+    // WebSocket initialized a moment later, no state changed and the effect
+    // never ran again, leaving the chart permanently on its loading screen.
     useEffect(() => {
-        if (!adapterInitialized && chart_api.api) {
+        let cancelled = false;
+
+        const initializeAdapter = async () => {
+            if (adapterInitialized) return;
+
             try {
+                if (!chart_api.api) {
+                    await chart_api.init();
+                }
+
+                if (cancelled || !isMountedRef.current) return;
+                if (!chart_api.api) {
+                    throw new Error('Deriv chart connection could not be initialized');
+                }
+
                 const transport = createTransport();
                 const services = createServices();
                 const championAdapter = buildSmartchartsChampionAdapter(transport, services, {
@@ -89,18 +105,24 @@ export const useSmartChartAdaptor = (): UseSmartChartAdaptorReturn => {
                     subscriptionTimeout: 30000,
                 });
 
-                if (isMountedRef.current) {
+                if (!cancelled && isMountedRef.current) {
                     setAdapter(championAdapter);
                     setAdapterInitialized(true);
                     setError(null);
                 }
             } catch (err) {
-                if (isMountedRef.current) {
+                if (!cancelled && isMountedRef.current) {
                     setError(err instanceof Error ? err : new Error('Failed to initialize adapter'));
                     setIsLoading(false);
                 }
             }
-        }
+        };
+
+        initializeAdapter();
+
+        return () => {
+            cancelled = true;
+        };
     }, [adapterInitialized]);
 
     // Load chart data when adapter is initialized
