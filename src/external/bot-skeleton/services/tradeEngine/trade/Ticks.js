@@ -178,13 +178,15 @@ export default Engine =>
                 const values = ['open', 'high', 'low', 'close'].map(key => Number(candle?.[key]));
                 return values.every(Number.isFinite) && values[1] >= values[2];
             });
-            const minimumCandles = {
-                EMA_RSI: 50,
-                MACD: 35,
-                RSI_REVERSAL: 16,
-                BOLLINGER: 21,
-                BREAKOUT: 21,
-            }[selected];
+            // Required completed-candle history for each strategy. The forming candle is excluded above.
+            const STRATEGY_LOOKBACK = {
+                EMA_RSI: 50, // EMA 50 needs the longest history; EMA 20 and RSI 14 share it.
+                MACD: 35, // 26-period slow EMA + 9-period signal EMA.
+                RSI_REVERSAL: 16, // RSI 14 plus the previous/current confirmation values.
+                BOLLINGER: 21, // 21-candle Bollinger window.
+                BREAKOUT: 21, // 20 prior range candles plus the breakout candle.
+            };
+            const minimumCandles = STRATEGY_LOOKBACK[selected];
             if (!minimumCandles || closed.length < minimumCandles) return 'WAIT';
 
             const closes = closed.map(candle => Number(candle.close));
@@ -260,10 +262,10 @@ export default Engine =>
                     const deviation = Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length);
                     return { upper: mean + 2 * deviation, lower: mean - 2 * deviation };
                 };
-                const previousBands = bands(closes.slice(-21, -1));
-                const currentBands = bands(closes.slice(-20));
-                if (previous < previousBands.lower && current >= currentBands.lower) return 'CALL';
-                if (previous > previousBands.upper && current <= currentBands.upper) return 'PUT';
+                // Use a consistent 21-candle Bollinger window for the active signal.
+                const currentBands = bands(closes.slice(-21));
+                if (previous < currentBands.lower && current >= currentBands.lower) return 'CALL';
+                if (previous > currentBands.upper && current <= currentBands.upper) return 'PUT';
                 return 'WAIT';
             }
             if (selected === 'BREAKOUT') {
