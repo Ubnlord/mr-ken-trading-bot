@@ -22,13 +22,20 @@ export default Engine =>
 
             this.isPurchaseInProgress = true;
             try {
-                return Promise.resolve(this.executePurchase(contract_type)).finally(() => {
+                const purchasePromise = Promise.resolve(this.executePurchase(contract_type));
+                const trackedPurchasePromise = purchasePromise.finally(() => {
                     this.isPurchaseInProgress = false;
+                    this.pendingPurchasePromise = null;
                 });
+                // The stop handler waits for an in-flight buy to finish before
+                // terminating the interpreter, so a late buy response is not orphaned.
+                this.pendingPurchasePromise = trackedPurchasePromise;
+                return trackedPurchasePromise;
             } catch (error) {
                 // executePurchase can throw before it returns a promise (for example,
                 // when no matching proposal is available). Always release the lock.
                 this.isPurchaseInProgress = false;
+                this.pendingPurchasePromise = null;
                 return Promise.reject(error);
             }
         }
