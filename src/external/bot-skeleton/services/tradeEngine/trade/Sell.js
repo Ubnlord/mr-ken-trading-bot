@@ -46,9 +46,12 @@ export default Engine =>
                 const sellContractAndGetContractInfo = () => {
                     return doUntilDone(() => api_base.api.send({ sell: contract_id, price: 0 }))
                         .then(sell_response => {
-                            doUntilDone(() => api_base.api.send({ proposal_open_contract: 1, contract_id })).then(
-                                () => sell_response
-                            );
+                            // Wait for the contract details request before advancing the trade engine.
+                            // Without returning this promise, the chain resolves immediately after the sell
+                            // response and can move on before the final contract state is confirmed.
+                            return doUntilDone(() =>
+                                api_base.api.send({ proposal_open_contract: 1, contract_id })
+                            ).then(() => sell_response);
                         })
                         .catch(e => {
                             const error = e.error;
