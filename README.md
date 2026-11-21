@@ -9,6 +9,10 @@ execution, and dashboard/tutorials.
 > Router** single-page app. The commands, build output, and environment variables
 > below differ accordingly.
 
+## Build verification
+
+Every push to `main` runs a GitHub Actions production-build check using Node.js 22 and the locked npm dependencies. It runs the same `npm run build` command as Netlify and verifies that `dist/index.html` and the SmartCharts assets are present. This check is diagnostic; Netlify remains the deployment host and continues deploying from the connected GitHub repository.
+
 ## Prerequisites
 
 - Node.js 22.12 or later
