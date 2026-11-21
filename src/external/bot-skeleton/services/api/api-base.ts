@@ -65,11 +65,14 @@ class APIBase {
     active_symbols_promise: Promise<any[] | undefined> | null = null;
     common_store: CommonStore | undefined;
     reconnection_attempts: number = 0;
+    private is_reconnecting = false;
+    private is_event_listeners_initialized = false;
+    private readonly socketOpenHandler = () => this.onsocketopen();
+    private readonly socketCloseHandler = () => this.onsocketclose();
 
     // Constants for timeouts - extracted magic numbers for better maintainability
     private readonly ACTIVE_SYMBOLS_TIMEOUT_MS = 10000; // 10 seconds
     private readonly ENRICHMENT_TIMEOUT_MS = 10000; // 10 seconds
-    private readonly MAX_RECONNECTION_ATTEMPTS = 5; // Maximum number of reconnection attempts before session reset
 
     unsubscribeAllSubscriptions = () => {
         this.current_auth_subscriptions?.forEach(subscription_promise => {
@@ -168,14 +171,14 @@ class APIBase {
                 ApiHelpers.disposeInstance();
                 setConnectionStatus(CONNECTION_STATUS.CLOSED);
                 this.api.disconnect();
-                this.api.connection.removeEventListener('open', this.onsocketopen.bind(this));
-                this.api.connection.removeEventListener('close', this.onsocketclose.bind(this));
+                this.api.connection.removeEventListener('open', this.socketOpenHandler);
+                this.api.connection.removeEventListener('close', this.socketCloseHandler);
             }
 
             this.api = await generateDerivApiInstance();
 
-            this.api?.connection.addEventListener('open', this.onsocketopen.bind(this));
-            this.api?.connection.addEventListener('close', this.onsocketclose.bind(this));
+            this.api?.connection.addEventListener('open', this.socketOpenHandler);
+            this.api?.connection.addEventListener('close', this.socketCloseHandler);
 
             // Store the current account ID used for this WebSocket connection
             // This will be used to check if we need to regenerate the connection when the tab becomes active
@@ -216,9 +219,10 @@ class APIBase {
     }
 
     initEventListeners() {
-        if (window) {
+        if (typeof window !== 'undefined' && !this.is_event_listeners_initialized) {
             window.addEventListener('online', this.reconnectIfNotConnected);
             window.addEventListener('focus', this.reconnectIfNotConnected);
+            this.is_event_listeners_initialized = true;
         }
     }
 
@@ -228,27 +232,24 @@ class APIBase {
         }
     }
 
-    reconnectIfNotConnected = () => {
-        if (this.api?.connection?.readyState && this.api?.connection?.readyState > 1) {
-            this.reconnection_attempts += 1;
+    reconnectIfNotConnected = async () => {
+        const readyState = this.api?.connection?.readyState;
 
-            if (this.reconnection_attempts >= this.MAX_RECONNECTION_ATTEMPTS) {
-                // Reset reconnection counter
-                this.reconnection_attempts = 0;
+        // Avoid parallel reconnect attempts from close, online, and focus events.
+        // A temporary network interruption must not erase a valid login session.
+        if (readyState === undefined || readyState <= 1 || this.is_reconnecting || this.is_stopping) {
+            return;
+        }
 
-                // Properly handle logout through the API
-                setIsAuthorized(false);
-                setAccountList([]);
-                setAuthData(null);
+        this.is_reconnecting = true;
+        this.reconnection_attempts += 1;
 
-                // Clear necessary storage items
-                localStorage.removeItem('active_loginid');
-                localStorage.removeItem('account_type');
-                localStorage.removeItem('accountsList');
-                localStorage.removeItem('clientAccounts');
-            }
-
-            this.init(true);
+        try {
+            await this.init(true);
+        } catch (error) {
+            console.error('[APIBase] WebSocket reconnection failed:', error);
+        } finally {
+            this.is_reconnecting = false;
         }
     };
 
