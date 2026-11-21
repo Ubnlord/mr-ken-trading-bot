@@ -138,6 +138,7 @@ export default Engine =>
 
         resetStrategyCandleMonitors() {
             this.strategyCandleMonitors?.clear();
+            this.lastExecutedStrategySignals?.clear();
         }
 
         async executeStrategyTrade(strategy = 'EMA_RSI', granularity = 300) {
