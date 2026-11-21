@@ -247,7 +247,7 @@ bool FindPattern(const MqlRates &r[], int bias, double atr,
    double bearImpulse=r[origin].close-r[impulseEnd].close;
    double impulse=(bias==1 ? bullImpulse : bearImpulse);
    double atrAtImpulse=0.0;
-   if(!ReadOne(hATR,0,InpPatternBars+1,atrAtImpulse) || atrAtImpulse<=0) return false;
+   if(!ReadOne(hATR,0,InpPatternBars+2,atrAtImpulse) || atrAtImpulse<=0) return false;
    if(impulse<atrAtImpulse*InpImpulseATR) return false;
    double retrace=(bias==1 ? (r[impulseEnd].high-lo) : (hi-r[impulseEnd].low))/impulse;
    if(retrace<0.0 || retrace>InpMaxRetracement) return false;
