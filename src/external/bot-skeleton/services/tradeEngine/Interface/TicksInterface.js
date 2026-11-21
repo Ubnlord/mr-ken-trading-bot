@@ -9,6 +9,7 @@ const getTicksInterface = tradeEngine => {
         checkDirection: (...args) => tradeEngine.checkDirection(...args),
         getOhlcFromEnd: (...args) => tradeEngine.getOhlcFromEnd(...args),
         getOhlc: (...args) => tradeEngine.getOhlc(...args),
+        getStrategySignal: (...args) => tradeEngine.getStrategySignal(...args),
         getLastDigitList: (...args) => tradeEngine.getLastDigitList(...args),
     };
 };
