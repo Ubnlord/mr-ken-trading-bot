@@ -1,0 +1,254 @@
+//@version=6
+strategy("Higher-Timeframe Flag/Pennant Break-and-Retest", overlay=true, pyramiding=0,
+     initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0.0,
+     process_orders_on_close=true, calc_on_every_tick=false, max_lines_count=100, max_labels_count=100)
+
+// IMPORTANT: Run on H1. Signals use completed bars only. No lookahead is used.
+// Pine cannot retrieve historical broker spread consistently; spread protection below
+// uses a user-entered conservative spread estimate in ticks.
+
+string G_BIAS = "1. Higher-timeframe bias"
+string G_PATTERN = "2. Pattern detection"
+string G_ENTRY = "3. Breakout and retest"
+string G_RISK = "4. Risk management"
+string G_FILTER = "5. Filters and execution"
+
+biasTf = input.timeframe("D", "Bias timeframe (D or 240)", group=G_BIAS)
+fastLen = input.int(50, "HTF fast EMA", minval=2, group=G_BIAS)
+slowLen = input.int(200, "HTF slow EMA", minval=3, group=G_BIAS)
+slopeLookback = input.int(5, "HTF EMA slope lookback", minval=1, group=G_BIAS)
+useAdx = input.bool(true, "Require HTF trend strength", group=G_BIAS)
+adxLen = input.int(14, "HTF ADX length", minval=2, group=G_BIAS)
+minAdx = input.float(18, "Minimum HTF ADX", minval=1, step=0.5, group=G_BIAS)
+
+patternBars = input.int(12, "Consolidation bars", minval=5, maxval=40, group=G_PATTERN)
+impulseBars = input.int(8, "Impulse lookback bars", minval=3, maxval=30, group=G_PATTERN)
+impulseAtr = input.float(2.0, "Minimum impulse (ATR)", minval=0.5, step=0.1, group=G_PATTERN)
+maxRetrace = input.float(0.55, "Maximum impulse retracement", minval=0.1, maxval=0.9, step=0.05, group=G_PATTERN)
+maxPatternAtr = input.float(2.5, "Maximum consolidation height (ATR)", minval=0.5, step=0.1, group=G_PATTERN)
+parallelTolerance = input.float(0.12, "Flag slope tolerance (ATR/bar)", minval=0.01, step=0.01, group=G_PATTERN)
+minQuality = input.int(60, "Minimum pattern quality (0-100)", minval=0, maxval=100, group=G_PATTERN)
+
+breakBodyAtr = input.float(0.35, "Minimum breakout body (ATR)", minval=0.05, step=0.05, group=G_ENTRY)
+retestAtr = input.float(0.35, "Maximum retest distance (ATR)", minval=0.05, step=0.05, group=G_ENTRY)
+retestExpiry = input.int(12, "Retest timeout (H1 bars)", minval=1, maxval=48, group=G_ENTRY)
+confirmBodyAtr = input.float(0.15, "Minimum confirmation body (ATR)", minval=0, step=0.05, group=G_ENTRY)
+
+riskPct = input.float(0.5, "Risk per trade (% equity)", minval=0.1, maxval=1.0, step=0.1, group=G_RISK)
+rr = input.float(2.0, "Reward/risk", options=[1.5, 2.0, 2.5, 3.0], group=G_RISK)
+atrLen = input.int(14, "ATR length", minval=2, group=G_RISK)
+slBufferAtr = input.float(0.2, "Stop safety buffer (ATR)", minval=0, step=0.05, group=G_RISK)
+maxDailyLossPct = input.float(2.0, "Maximum daily loss (%) — 0 disables", minval=0, step=0.25, group=G_RISK)
+maxTradesDay = input.int(3, "Maximum entries per day — 0 disables", minval=0, group=G_RISK)
+
+useSession = input.bool(false, "Enable session filter", group=G_FILTER)
+tradeSession = input.session("0700-1700", "Trading session (exchange time)", group=G_FILTER)
+assumedSpreadTicks = input.float(2, "Assumed spread (ticks)", minval=0, step=0.1, group=G_FILTER)
+maxSpreadTicks = input.float(5, "Maximum allowed spread (ticks)", minval=0, step=0.1, group=G_FILTER)
+minAtrTicks = input.float(0, "Minimum ATR (ticks) — 0 disables", minval=0, group=G_FILTER)
+maxAtrTicks = input.float(0, "Maximum ATR (ticks) — 0 disables", minval=0, group=G_FILTER)
+showLevels = input.bool(true, "Draw setup and trade levels", group=G_FILTER)
+
+// Higher-timeframe values are sampled from the last completed HTF candle.
+f_completed_htf_adx() =>
+    [diPlus, diMinus, adxValue] = ta.dmi(adxLen, adxLen)
+    adxValue[1]
+
+[htfClose, htfFast, htfSlow, htfFastPrev] = request.security(
+     syminfo.tickerid, biasTf,
+     [close[1], ta.ema(close, fastLen)[1], ta.ema(close, slowLen)[1],
+      ta.ema(close, fastLen)[slopeLookback + 1]],
+     gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+htfAdx = request.security(syminfo.tickerid, biasTf, f_completed_htf_adx(),
+     gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+
+bullBias = htfClose > htfFast and htfFast > htfSlow and htfFast > htfFastPrev and (not useAdx or htfAdx >= minAdx)
+bearBias = htfClose < htfFast and htfFast < htfSlow and htfFast < htfFastPrev and (not useAdx or htfAdx >= minAdx)
+biasText = bullBias ? "BULLISH" : bearBias ? "BEARISH" : "NEUTRAL"
+atr = ta.atr(atrLen)
+isH1 = timeframe.isintraday and timeframe.multiplier == 60
+sessionOk = not useSession or not na(time(timeframe.period, tradeSession))
+spreadOk = assumedSpreadTicks <= maxSpreadTicks
+atrTicks = atr / syminfo.mintick
+atrVolatilityOk = (minAtrTicks == 0 or atrTicks >= minAtrTicks) and (maxAtrTicks == 0 or atrTicks <= maxAtrTicks)
+
+// Daily guard resets at the first bar of each exchange day.
+var float dayStartEquity = strategy.equity
+var int entriesToday = 0
+newDay = ta.change(time("D")) != 0
+if newDay
+    dayStartEquity := strategy.equity
+    entriesToday := 0
+dailyLossPct = dayStartEquity > 0 ? (dayStartEquity - strategy.equity) / dayStartEquity * 100 : 0
+dailyOk = (maxDailyLossPct == 0 or dailyLossPct < maxDailyLossPct) and (maxTradesDay == 0 or entriesToday < maxTradesDay)
+
+// Use only the previous, fully closed consolidation window. The impulse must precede it.
+impulseStart = patternBars + 1
+impulseOrigin = patternBars + impulseBars + 1
+bullImpulseSize = close[impulseStart] - close[impulseOrigin]
+bearImpulseSize = close[impulseOrigin] - close[impulseStart]
+bullImpulseOk = bullImpulseSize >= nz(atr[impulseStart]) * impulseAtr
+bearImpulseOk = bearImpulseSize >= nz(atr[impulseStart]) * impulseAtr
+rangeHigh = ta.highest(high[1], patternBars)
+rangeLow = ta.lowest(low[1], patternBars)
+bullRetrace = bullImpulseSize > 0 ? (high[impulseStart] - rangeLow) / bullImpulseSize : 10.0
+bearRetrace = bearImpulseSize > 0 ? (rangeHigh - low[impulseStart]) / bearImpulseSize : 10.0
+rangeHeight = rangeHigh - rangeLow
+rangeOk = rangeHeight <= atr * maxPatternAtr
+
+upperSlope = (ta.linreg(high[1], patternBars, 0) - ta.linreg(high[1], patternBars, patternBars - 1)) / (patternBars - 1)
+lowerSlope = (ta.linreg(low[1], patternBars, 0) - ta.linreg(low[1], patternBars, patternBars - 1)) / (patternBars - 1)
+bullFlag = upperSlope < 0 and lowerSlope < 0 and math.abs(upperSlope - lowerSlope) <= atr * parallelTolerance
+bullPennant = upperSlope < 0 and lowerSlope > 0
+bearFlag = upperSlope > 0 and lowerSlope > 0 and math.abs(upperSlope - lowerSlope) <= atr * parallelTolerance
+bearPennant = upperSlope > 0 and lowerSlope < 0
+
+// A transparent 0-100 quality score: impulse strength, controlled pullback, compactness, geometry.
+impulseScore = math.min(30.0, math.max(0.0, 30.0 * math.max(bullImpulseSize, bearImpulseSize) / math.max(nz(atr[impulseStart]) * impulseAtr * 1.5, syminfo.mintick)))
+pullbackScore = math.max(0.0, 25.0 * (1.0 - math.min(bullBias ? bullRetrace : bearRetrace, 1.0)))
+compactScore = math.max(0.0, 25.0 * (1.0 - math.min(rangeHeight / math.max(atr * maxPatternAtr, syminfo.mintick), 1.0)))
+geometryScore = (bullFlag or bullPennant or bearFlag or bearPennant) ? 20.0 : 0.0
+quality = int(math.round(math.min(100.0, impulseScore + pullbackScore + compactScore + geometryScore)))
+
+bullPattern = bullBias and bullImpulseOk and bullRetrace <= maxRetrace and rangeOk and (bullFlag or bullPennant) and quality >= minQuality
+bearPattern = bearBias and bearImpulseOk and bearRetrace <= maxRetrace and rangeOk and (bearFlag or bearPennant) and quality >= minQuality
+patternName = bullPattern ? (bullFlag ? "Bull Flag" : "Bull Pennant") : bearPattern ? (bearFlag ? "Bear Flag" : "Bear Pennant") : "—"
+
+// State: 0 waiting for pattern, 1 breakout confirmed / wait for retest, 2 retest confirmed / wait for candle confirmation.
+var int state = 0
+var int direction = 0
+var int breakoutBar = na
+var float breakoutLevel = na
+var float retestSwing = na
+var float activeUpper = na
+var float activeLower = na
+var int activeQuality = na
+var string activePattern = "—"
+var float activeStop = na
+var float activeTarget = na
+var line upperTrendLine = na
+var line lowerTrendLine = na
+
+upperLine = ta.linreg(high[1], patternBars, 0)
+lowerLine = ta.linreg(low[1], patternBars, 0)
+upperStart = ta.linreg(high[1], patternBars, patternBars - 1)
+lowerStart = ta.linreg(low[1], patternBars, patternBars - 1)
+breakBody = math.abs(close - open)
+canScan = isH1 and barstate.isconfirmed and state == 0 and strategy.position_size == 0 and sessionOk and spreadOk and dailyOk and atrVolatilityOk
+
+if canScan and bullPattern
+    activeUpper := upperLine
+    activeLower := lowerLine
+    activeQuality := quality
+    activePattern := bullFlag ? "Bull Flag" : "Bull Pennant"
+    if close > activeUpper and breakBody >= atr * breakBodyAtr
+        state := 1
+        direction := 1
+        breakoutBar := bar_index
+        breakoutLevel := activeUpper
+else if canScan and bearPattern
+    activeUpper := upperLine
+    activeLower := lowerLine
+    activeQuality := quality
+    activePattern := bearFlag ? "Bear Flag" : "Bear Pennant"
+    if close < activeLower and breakBody >= atr * breakBodyAtr
+        state := 1
+        direction := -1
+        breakoutBar := bar_index
+        breakoutLevel := activeLower
+
+// If a pattern exists but has not broken out, keep its boundaries available for chart review.
+if canScan and state == 0 and (bullPattern or bearPattern)
+    activeUpper := upperLine
+    activeLower := lowerLine
+    activeQuality := quality
+    activePattern := patternName
+
+if canScan and (bullPattern or bearPattern)
+    if not na(upperTrendLine)
+        line.delete(upperTrendLine)
+    if not na(lowerTrendLine)
+        line.delete(lowerTrendLine)
+    upperTrendLine := line.new(bar_index - patternBars, upperStart, bar_index - 1, upperLine,
+         extend=extend.right, color=color.new(color.orange, 0), width=2)
+    lowerTrendLine := line.new(bar_index - patternBars, lowerStart, bar_index - 1, lowerLine,
+         extend=extend.right, color=color.new(color.aqua, 0), width=2)
+
+if state == 1 and barstate.isconfirmed
+    if bar_index - breakoutBar > retestExpiry or (direction == 1 and close < breakoutLevel - atr * retestAtr * 2) or (direction == -1 and close > breakoutLevel + atr * retestAtr * 2)
+        state := 0
+    else if bar_index > breakoutBar and direction == 1 and low <= breakoutLevel + atr * retestAtr and close >= breakoutLevel - atr * retestAtr
+        retestSwing := low
+        state := 2
+    else if bar_index > breakoutBar and direction == -1 and high >= breakoutLevel - atr * retestAtr and close <= breakoutLevel + atr * retestAtr
+        retestSwing := high
+        state := 2
+
+if state == 2 and barstate.isconfirmed and strategy.position_size == 0
+    if bar_index - breakoutBar > retestExpiry
+        state := 0
+    else
+        bullishConfirm = direction == 1 and close > open and close - open >= atr * confirmBodyAtr and close > breakoutLevel
+        bearishConfirm = direction == -1 and close < open and open - close >= atr * confirmBodyAtr and close < breakoutLevel
+        if bullishConfirm
+            activeStop := retestSwing - atr * slBufferAtr
+            riskDistance = close - activeStop
+            riskCash = strategy.equity * riskPct / 100
+            pointValue = math.max(syminfo.pointvalue, 0.0000001)
+            lossPerUnit = strategy.convert_to_account(riskDistance * pointValue)
+            qty = riskDistance > syminfo.mintick and lossPerUnit > 0 ? riskCash / lossPerUnit : 0
+            activeTarget := close + riskDistance * rr
+            if qty > 0 and dailyOk and sessionOk and spreadOk
+                strategy.entry("Long", strategy.long, qty=qty, comment=activePattern)
+                strategy.exit("Long SL/TP", "Long", stop=activeStop, limit=activeTarget)
+                entriesToday += 1
+                label.new(bar_index, low, "BUY • " + activePattern + "\nQuality " + str.tostring(activeQuality) + "/100", style=label.style_label_up, color=color.new(color.green, 0), textcolor=color.white)
+            state := 0
+        else if bearishConfirm
+            activeStop := retestSwing + atr * slBufferAtr
+            riskDistance = activeStop - close
+            riskCash = strategy.equity * riskPct / 100
+            pointValue = math.max(syminfo.pointvalue, 0.0000001)
+            lossPerUnit = strategy.convert_to_account(riskDistance * pointValue)
+            qty = riskDistance > syminfo.mintick and lossPerUnit > 0 ? riskCash / lossPerUnit : 0
+            activeTarget := close - riskDistance * rr
+            if qty > 0 and dailyOk and sessionOk and spreadOk
+                strategy.entry("Short", strategy.short, qty=qty, comment=activePattern)
+                strategy.exit("Short SL/TP", "Short", stop=activeStop, limit=activeTarget)
+                entriesToday += 1
+                label.new(bar_index, high, "SELL • " + activePattern + "\nQuality " + str.tostring(activeQuality) + "/100", style=label.style_label_down, color=color.new(color.red, 0), textcolor=color.white)
+            state := 0
+
+// Maintain protective orders while a position is open.
+if strategy.position_size > 0 and not na(activeStop) and not na(activeTarget)
+    strategy.exit("Long SL/TP", "Long", stop=activeStop, limit=activeTarget)
+if strategy.position_size < 0 and not na(activeStop) and not na(activeTarget)
+    strategy.exit("Short SL/TP", "Short", stop=activeStop, limit=activeTarget)
+
+// Visuals: prior-window regression boundaries, breakout/retest level, live SL/TP and HTF bias.
+plot(showLevels and (state > 0 or activePattern != "—") ? activeUpper : na, "Pattern upper boundary", color=color.new(color.orange, 0), linewidth=1)
+plot(showLevels and (state > 0 or activePattern != "—") ? activeLower : na, "Pattern lower boundary", color=color.new(color.aqua, 0), linewidth=1)
+plot(showLevels and state > 0 ? breakoutLevel : na, "Breakout / retest level", color=color.new(color.yellow, 0), linewidth=2, style=plot.style_linebr)
+plot(showLevels and strategy.position_size != 0 ? activeStop : na, "Stop loss", color=color.red, linewidth=2, style=plot.style_linebr)
+plot(showLevels and strategy.position_size != 0 ? activeTarget : na, "Take profit", color=color.lime, linewidth=2, style=plot.style_linebr)
+plotchar(bullBias, "HTF bullish bias", "▲", location=location.top, color=color.lime, size=size.tiny)
+plotchar(bearBias, "HTF bearish bias", "▼", location=location.top, color=color.red, size=size.tiny)
+
+var table panel = table.new(position.top_right, 2, 5, border_width=1)
+if barstate.islast
+    table.cell(panel, 0, 0, "HTF bias", text_color=color.white, bgcolor=color.new(color.gray, 65))
+    table.cell(panel, 1, 0, biasText, text_color=bullBias ? color.lime : bearBias ? color.red : color.silver)
+    table.cell(panel, 0, 1, "Pattern", text_color=color.white, bgcolor=color.new(color.gray, 65))
+    table.cell(panel, 1, 1, activePattern)
+    table.cell(panel, 0, 2, "Quality", text_color=color.white, bgcolor=color.new(color.gray, 65))
+    table.cell(panel, 1, 2, na(activeQuality) ? "—" : str.tostring(activeQuality) + "/100")
+    table.cell(panel, 0, 3, "State", text_color=color.white, bgcolor=color.new(color.gray, 65))
+    table.cell(panel, 1, 3, not isH1 ? "Use H1 chart" : state == 0 ? "Scanning" : state == 1 ? "Wait retest" : "Wait confirmation")
+    table.cell(panel, 0, 4, "Daily guard", text_color=color.white, bgcolor=color.new(color.gray, 65))
+    table.cell(panel, 1, 4, dailyOk ? "OK" : "Blocked")
+
+if not isH1 and barstate.islast
+    label.new(bar_index, high, "Apply this strategy to an H1 chart", style=label.style_label_down, color=color.orange, textcolor=color.black)
+
+// Backtest metrics are available in TradingView's Strategy Tester:
+// trades, win rate, net profit, profit factor, drawdown, average trade and Sharpe (where supported).
