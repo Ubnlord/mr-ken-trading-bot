@@ -10,3 +10,4 @@ import './last_digit';
 import './lastDigitList';
 import './stat';
 import './stat_list';
+import './technical_strategy_signal';
