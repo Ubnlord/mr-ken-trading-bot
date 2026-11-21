@@ -10,12 +10,23 @@ let purchase_reference;
 
 export default Engine =>
     class Purchase extends Engine {
+        isPurchaseInProgress = false;
+
         purchase(contract_type) {
-            // Prevent calling purchase twice
-            if (this.store.getState().scope !== BEFORE_PURCHASE) {
+            // Guard both the engine state and concurrent calls. The scope can remain
+            // BEFORE_PURCHASE while a buy request is in flight, so scope alone is not
+            // enough to prevent two rapid triggers from sending duplicate orders.
+            if (this.store.getState().scope !== BEFORE_PURCHASE || this.isPurchaseInProgress) {
                 return Promise.resolve();
             }
 
+            this.isPurchaseInProgress = true;
+            return this.executePurchase(contract_type).finally(() => {
+                this.isPurchaseInProgress = false;
+            });
+        }
+
+        executePurchase(contract_type) {
             const onSuccess = response => {
                 // Don't unnecessarily send a forget request for a purchased contract.
                 const { buy } = response;
