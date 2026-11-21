@@ -157,8 +157,19 @@ const AppContent = observer(() => {
         isRetrievingActiveSymbolsRef.current = true;
         clearActiveSymbolsWaiters();
 
+        let requestTimeoutId;
         try {
-            await activeSymbols.retrieveActiveSymbols(true);
+            // Also bound the market-data request itself. A stalled HTTP/WebSocket
+            // response must not keep the app behind the startup loader indefinitely.
+            await Promise.race([
+                activeSymbols.retrieveActiveSymbols(true),
+                new Promise((_, reject) => {
+                    requestTimeoutId = setTimeout(
+                        () => reject(new Error('Active symbols request timed out')),
+                        15000
+                    );
+                }),
+            ]);
         } catch (error) {
             console.error('[Deriv Bot] Failed to load active symbols:', error);
             botNotification(
@@ -167,6 +178,7 @@ const AppContent = observer(() => {
                 { type: 'warning' }
             );
         } finally {
+            if (requestTimeoutId) clearTimeout(requestTimeoutId);
             isRetrievingActiveSymbolsRef.current = false;
             if (isMountedRef.current) setIsLoading(false);
         }
