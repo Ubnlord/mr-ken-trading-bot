@@ -347,11 +347,20 @@ export default class TicksService {
                     try {
                         this.forgetCandleSubscription()
                             .then(() => {
+                                // Clear cached history after forgetting subscriptions so a
+                                // restarted bot cannot reuse stale candles without resubscribing.
+                                this.ticks = new Map();
+                                this.candles = new Map();
+                                this.tickListeners = new Map();
+                                this.ohlcListeners = new Map();
+                                this.subscriptions = new Map();
+                                this.ticks_history_promise = null;
+                                this.candles_promise = null;
                                 resolve();
                             })
                             .catch(reject);
                     } catch (e) {
-                        console.log('Error in unsubscribeFromTicksService', e);
+                        reject(e);
                     }
                 })
                 .catch(reject);
