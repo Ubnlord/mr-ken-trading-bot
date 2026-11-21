@@ -1,6 +1,7 @@
 //@version=6
 strategy("Higher-Timeframe Flag/Pennant Break-and-Retest", overlay=true, pyramiding=0,
      initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0.0,
+     margin_long=5, margin_short=5,
      process_orders_on_close=true, calc_on_every_tick=false, max_lines_count=100, max_labels_count=100)
 
 // IMPORTANT: Run on H1. Signals use completed bars only. No lookahead is used.
