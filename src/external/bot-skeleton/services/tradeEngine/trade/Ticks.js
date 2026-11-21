@@ -140,6 +140,28 @@ export default Engine =>
             this.strategyCandleMonitors?.clear();
         }
 
+        async executeStrategyTrade(strategy = 'EMA_RSI', granularity = 300) {
+            const selectedStrategy = String(strategy).toUpperCase();
+            const selectedGranularity = Number(granularity);
+            const signal = await this.getStrategySignal(selectedStrategy, selectedGranularity);
+            const strategyKey = `${selectedStrategy}:${selectedGranularity}`;
+
+            if (!this.lastExecutedStrategySignals) this.lastExecutedStrategySignals = new Map();
+
+            if (signal !== 'CALL' && signal !== 'PUT') {
+                this.lastExecutedStrategySignals.delete(strategyKey);
+                return 'WAIT';
+            }
+
+            // A persistent trend signal must not trigger another purchase after every
+            // contract closes. Require the signal to return to WAIT (or reverse) first.
+            if (this.lastExecutedStrategySignals.get(strategyKey) === signal) return 'WAIT';
+
+            this.lastExecutedStrategySignals.set(strategyKey, signal);
+            await this.purchase(signal);
+            return signal;
+        }
+
         async getStrategySignal(strategy = 'EMA_RSI', granularity = 300) {
             const validGranularity = [60, 300, 900, 1800, 3600, 14400, 86400].includes(Number(granularity))
                 ? Number(granularity)
