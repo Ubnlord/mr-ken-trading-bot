@@ -35,6 +35,7 @@ type TStatisticsSummary = {
     toggleStatisticsInfoModal: () => void;
     total_profit: number;
     won_contracts: number;
+    win_rate: number;
 };
 type TDrawerHeader = {
     is_clear_stat_disabled: boolean;
@@ -78,6 +79,7 @@ export const StatisticsSummary = ({
     toggleStatisticsInfoModal,
     total_profit,
     won_contracts,
+    win_rate,
 }: TStatisticsSummary) => (
     <div
         className={classNames('run-panel__stat', {
@@ -103,6 +105,7 @@ export const StatisticsSummary = ({
             <StatisticsTile title={localize('No. of runs')} alignment='top' content={number_of_runs} />
             <StatisticsTile title={localize('Contracts lost')} alignment='bottom' content={lost_contracts} />
             <StatisticsTile title={localize('Contracts won')} alignment='bottom' content={won_contracts} />
+            <StatisticsTile title={localize('Win rate')} alignment='bottom' content={`${win_rate}%`} />
             <StatisticsTile
                 title={localize('Total profit/loss')}
                 content={<Money amount={total_profit} currency={currency} has_sign show_currency />}
@@ -267,7 +270,7 @@ const RunPanel = observer(() => {
     } = run_panel;
     const { statistics } = transactions;
     const { active_tour, active_tab } = dashboard;
-    const { total_payout, total_profit, total_stake, won_contracts, lost_contracts, number_of_runs } = statistics;
+    const { total_payout, total_profit, total_stake, won_contracts, lost_contracts, number_of_runs, win_rate } = statistics;
     const { BOT_BUILDER, CHART } = DBOT_TABS;
 
     React.useEffect(() => {
@@ -296,6 +299,7 @@ const RunPanel = observer(() => {
             total_profit={total_profit}
             total_stake={total_stake}
             won_contracts={won_contracts}
+            win_rate={win_rate}
             active_tour={active_tour}
         />
     );
