@@ -7,6 +7,7 @@ This folder adds a separate Forex strategy package without changing the existing
 - `tradingview/HTF_Flag_Pennant_Break_Retest.pine`: Pine Script v6 strategy for TradingView Strategy Tester.
 - `mt5/HTF_Flag_Pennant_Break_Retest.mq5`: MetaTrader 5 Expert Advisor source.
 - `SPECIFICATION.md`: shared rule definitions and parity checklist.
+- `OPTIMIZATION_PLAN.md`: free, controlled backtesting workflow and current baseline.
 
 ## TradingView
 
