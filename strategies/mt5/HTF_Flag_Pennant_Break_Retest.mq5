@@ -312,17 +312,20 @@ bool PlaceTrade(int direction, double entry, double stop)
    target=NormalizeDouble(target,digits);
    trade.SetExpertMagicNumber(InpMagicNumber);
    trade.SetDeviationInPoints(20);
-   bool ok=(direction==1 ? trade.Buy(volume,_Symbol,0.0,stop,target,g_pattern) :
-                            trade.Sell(volume,_Symbol,0.0,stop,target,g_pattern));
-   if(ok)
+   trade.SetTypeFillingBySymbol(_Symbol);
+   bool requestOK=(direction==1 ? trade.Buy(volume,_Symbol,0.0,stop,target,g_pattern) :
+                                   trade.Sell(volume,_Symbol,0.0,stop,target,g_pattern));
+   uint retcode=trade.ResultRetcode();
+   bool executed=requestOK && (retcode==TRADE_RETCODE_DONE || retcode==TRADE_RETCODE_DONE_PARTIAL);
+   if(executed)
    {
       g_entriesToday++;
       DrawLevel("MK_Stop_"+_Symbol+"_"+(string)InpMagicNumber,stop,clrTomato);
       DrawLevel("MK_Target_"+_Symbol+"_"+(string)InpMagicNumber,target,clrLime);
       Comment(g_pattern," | Quality ",g_quality,"/100 | Risk ",DoubleToString(InpRiskPercent,2),"% | RR 1:",DoubleToString(InpRewardRisk,1));
    }
-   else Print("Order rejected: ",trade.ResultRetcode()," ",trade.ResultRetcodeDescription());
-   return ok;
+   else Print("Order not filled/accepted: request=",requestOK," retcode=",retcode," ",trade.ResultRetcodeDescription());
+   return executed;
 }
 
 int OnInit()
