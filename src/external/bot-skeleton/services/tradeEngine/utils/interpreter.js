@@ -224,6 +224,8 @@ const Interpreter = () => {
                 $scope.is_error_triggered = false;
                 globalObserver.emit('bot.stop');
                 const { ticksService } = $scope;
+                // Clear strategy monitor bookkeeping before the shared candle subscriptions are removed.
+                bot?.tradeEngine?.resetStrategyCandleMonitors?.();
                 // Unsubscribe previous ticks_history subscription
                 // Unsubscribe the subscriptions from Proposal, Balance and OpenContract
                 api_base.clearSubscriptions();
