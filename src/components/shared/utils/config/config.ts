@@ -106,7 +106,10 @@ export const generateOAuthURL = async (prompt?: string): Promise<string> => {
 
         const config: AuthConfig = {
             clientId,
-            redirectUri: window.location.origin,
+            redirectUri:
+                process.env.NEXT_PUBLIC_GITHUB_PAGES === 'true'
+                    ? `${window.location.origin}/mr-ken-trading-bot/`
+                    : window.location.origin,
             scopes: 'trade',
             // Without this a Bot deployed in ES/FR/PT sends its clients to an
             // English login (#804). `getInitialLanguage()` is the same reader
