@@ -11,7 +11,7 @@ execution, and dashboard/tutorials.
 
 ## Prerequisites
 
-- Node.js 18.18 or later
+- Node.js 22.12 or later
 
 ## Step 1: Register Your App ID
 
@@ -117,3 +117,10 @@ not Next.js config:
 
 When assembled by the App Builder, these are configured for you (logo upload, color,
 font, and app name are injected at deploy time).
+
+
+## Forex strategy package: HTF Flag/Pennant Break-and-Retest
+
+A separate Forex strategy package is available in [`strategies/`](strategies/README.md). It includes a TradingView Pine Script v6 strategy, an MT5 Expert Advisor source file, and a shared rule specification. It does not replace the existing Deriv Blockly/options bot or route Forex orders through Deriv's options API.
+
+See [strategy setup and backtesting instructions](strategies/README.md). Compile and validate both implementations independently, then compare them using identical market data, costs, timeframe and risk settings. No profitability is implied.
