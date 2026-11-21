@@ -39,6 +39,7 @@ const Interpreter = () => {
     let bot = Interface($scope);
     let interpreter = {};
     let onFinish;
+    let stopPromise;
 
     $scope.observer.register('REVERT', watchName =>
         revert(watchName === 'before' ? $scope.beforeState : $scope.duringState)
@@ -159,44 +160,61 @@ const Interpreter = () => {
         js_interpreter.setProperty(scope, 'sleep', createAsync(js_interpreter, sleep));
     }
 
-    async function stop() {
-        return new Promise((resolve, reject) => {
-            try {
-                const global_timeouts = globalObserver.getState('global_timeouts') ?? [];
-                const is_timeouts_cancellable = Object.keys(global_timeouts).every(
-                    timeout => global_timeouts[timeout].is_cancellable
-                );
+    function stop() {
+        // Multiple stop requests should share one shutdown operation.
+        if (stopPromise) return stopPromise;
 
-                if (!bot.tradeEngine.contractId && is_timeouts_cancellable) {
-                    api_base.is_stopping = true;
-                    // When user is rate limited, allow them to stop the bot immediately
-                    // granted there is no active contract.
-                    global_timeouts.forEach(timeout => clearTimeout(global_timeouts[timeout]));
-                    terminateSession().then(() => {
-                        api_base.is_stopping = false;
-                        resolve();
-                    });
-                } else if (
-                    bot.tradeEngine.isSold === false &&
-                    !$scope.is_error_triggered &&
-                    isMultiplierContract(bot?.tradeEngine?.data?.contract?.contract_type ?? '')
-                ) {
-                    globalObserver.register('contract.status', async contractStatus => {
-                        if (contractStatus.id === 'contract.sold') {
-                            terminateSession().then(() => resolve());
-                        }
-                    });
-                } else {
-                    api_base.is_stopping = true;
-                    terminateSession().then(() => {
-                        api_base.is_stopping = false;
-                        resolve();
-                    });
-                }
-            } catch (e) {
-                reject(e);
+        stopPromise = (async () => {
+            // A buy request can be accepted by Deriv just before the user stops the bot.
+            // Wait for its response so the engine can record the contract ID first.
+            // If the buy fails, stopping should still continue normally.
+            const pendingPurchase = bot?.tradeEngine?.pendingPurchasePromise;
+            if (pendingPurchase) {
+                await pendingPurchase.catch(() => undefined);
             }
+
+            return new Promise((resolve, reject) => {
+                try {
+                    const global_timeouts = globalObserver.getState('global_timeouts') ?? [];
+                    const is_timeouts_cancellable = Object.keys(global_timeouts).every(
+                        timeout => global_timeouts[timeout].is_cancellable
+                    );
+
+                    if (!bot.tradeEngine.contractId && is_timeouts_cancellable) {
+                        api_base.is_stopping = true;
+                        // When user is rate limited, allow them to stop the bot immediately
+                        // granted there is no active contract.
+                        global_timeouts.forEach(timeout => clearTimeout(global_timeouts[timeout]));
+                        terminateSession().then(() => {
+                            api_base.is_stopping = false;
+                            resolve();
+                        });
+                    } else if (
+                        bot.tradeEngine.isSold === false &&
+                        !$scope.is_error_triggered &&
+                        isMultiplierContract(bot?.tradeEngine?.data?.contract?.contract_type ?? '')
+                    ) {
+                        globalObserver.register('contract.status', async contractStatus => {
+                            if (contractStatus.id === 'contract.sold') {
+                                terminateSession().then(() => resolve());
+                            }
+                        });
+                    } else {
+                        api_base.is_stopping = true;
+                        terminateSession().then(() => {
+                            api_base.is_stopping = false;
+                            resolve();
+                        });
+                    }
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        })().finally(() => {
+            stopPromise = undefined;
         });
+
+        return stopPromise;
     }
 
     async function terminateSession() {
