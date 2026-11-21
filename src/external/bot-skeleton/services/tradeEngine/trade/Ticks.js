@@ -175,18 +175,16 @@ export default Engine =>
                 return 'WAIT';
             }
             if (selected === 'MACD') {
-                const macdLine = closes.map((_, index) => {
-                    const shortValues = ema(closes.slice(0, index + 1), 12);
-                    const longValues = ema(closes.slice(0, index + 1), 26);
-                    return shortValues.at(-1) != null && longValues.at(-1) != null
-                        ? shortValues.at(-1) - longValues.at(-1)
-                        : null;
-                });
-                const signalLine = ema(macdLine.slice(25).map(value => Number(value)), 9);
-                const currentSignal = signalLine.at(-1);
-                const previousSignal = signalLine.at(-2);
-                const currentMacd = macdLine.at(-1);
-                const previousMacd = macdLine.at(-2);
+                const fastEma = ema(closes, 12);
+                const slowEma = ema(closes, 26);
+                const macdLine = fastEma
+                    .map((value, index) => (value == null || slowEma[index] == null ? null : value - slowEma[index]))
+                    .filter(value => value != null);
+                const signalLine = ema(macdLine, 9);
+                const currentSignal = signalLine[signalLine.length - 1];
+                const previousSignal = signalLine[signalLine.length - 2];
+                const currentMacd = macdLine[macdLine.length - 1];
+                const previousMacd = macdLine[macdLine.length - 2];
                 if ([currentSignal, previousSignal, currentMacd, previousMacd].some(value => value == null)) return 'WAIT';
                 if (previousMacd <= previousSignal && currentMacd > currentSignal) return 'CALL';
                 if (previousMacd >= previousSignal && currentMacd < currentSignal) return 'PUT';
@@ -198,13 +196,15 @@ export default Engine =>
                 return 'WAIT';
             }
             if (selected === 'BOLLINGER') {
-                const periodValues = closes.slice(-20);
-                const mean = periodValues.reduce((sum, value) => sum + value, 0) / 20;
-                const deviation = Math.sqrt(periodValues.reduce((sum, value) => sum + (value - mean) ** 2, 0) / 20);
-                const upper = mean + 2 * deviation;
-                const lower = mean - 2 * deviation;
-                if (previous < lower && current >= lower) return 'CALL';
-                if (previous > upper && current <= upper) return 'PUT';
+                const bands = values => {
+                    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+                    const deviation = Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length);
+                    return { upper: mean + 2 * deviation, lower: mean - 2 * deviation };
+                };
+                const previousBands = bands(closes.slice(-21, -1));
+                const currentBands = bands(closes.slice(-20));
+                if (previous < previousBands.lower && current >= currentBands.lower) return 'CALL';
+                if (previous > previousBands.upper && current <= currentBands.upper) return 'PUT';
                 return 'WAIT';
             }
             if (selected === 'BREAKOUT') {
