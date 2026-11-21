@@ -99,6 +99,9 @@ export default class TransactionsStore {
             }
         );
         statistics.number_of_runs = total_runs;
+        statistics.win_rate = total_runs > 0
+            ? Number(((statistics.won_contracts / total_runs) * 100).toFixed(1))
+            : 0;
         return statistics;
     }
 
