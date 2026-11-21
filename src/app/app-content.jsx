@@ -111,7 +111,13 @@ const AppContent = observer(() => {
     );
 
     React.useEffect(() => {
-        setSmartChartsPublicPath(getUrlBase('/js/smartcharts/'));
+        // GitHub Pages hosts this app under /mr-ken-trading-bot/, so SmartCharts
+        // must load its Flutter/chart assets from the same project subpath.
+        const smartChartsPublicPath =
+            process.env.NEXT_PUBLIC_GITHUB_PAGES === 'true'
+                ? '/mr-ken-trading-bot/js/smartcharts/'
+                : getUrlBase('/js/smartcharts/');
+        setSmartChartsPublicPath(smartChartsPublicPath);
     }, []);
 
     React.useEffect(() => {
