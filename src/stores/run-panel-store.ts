@@ -526,6 +526,8 @@ export default class RunPanelStore {
     };
 
     onBotStopEvent = () => {
+        // A stopped or terminated run must never leave the purchase UI locked.
+        this.is_contract_buying_in_progress = false;
         const { summary_card } = this.root_store;
         const { ui } = this.core;
         const indicateBotStopped = () => {
@@ -634,6 +636,9 @@ export default class RunPanelStore {
     };
 
     onError = (data: { error: any }) => {
+        // Release the pending-purchase UI state on every API or interpreter error.
+        // The purchase engine also releases its own in-flight guard in finally().
+        this.is_contract_buying_in_progress = false;
         // data.error for API errors, data for code errors
         const error = data.error || data;
         if (unrecoverable_errors.includes(error.code)) {
