@@ -17,16 +17,15 @@ const ToolbarWidgets = ({ updateChartType, updateGranularity, position, isDeskto
     return (
         <ToolbarWidget position={validPosition || (isMobile ? 'bottom' : null)}>
             <ChartMode portalNodeId='modal_root' onChartType={updateChartType} onGranularity={updateGranularity} />
+            {/* Keep indicator controls available on mobile as well as desktop. */}
+            <StudyLegend portalNodeId='modal_root' searchInputClassName='data-hj-whitelist' />
             {isDesktop && (
-                <>
-                    <StudyLegend portalNodeId='modal_root' searchInputClassName='data-hj-whitelist' />
-                    <Views
-                        portalNodeId='modal_root'
-                        onChartType={updateChartType}
-                        onGranularity={updateGranularity}
-                        searchInputClassName='data-hj-whitelist'
-                    />
-                </>
+                <Views
+                    portalNodeId='modal_root'
+                    onChartType={updateChartType}
+                    onGranularity={updateGranularity}
+                    searchInputClassName='data-hj-whitelist'
+                />
             )}
             <DrawTools portalNodeId='modal_root' />
             {isDesktop && (
