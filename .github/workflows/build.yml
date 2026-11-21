@@ -1,0 +1,41 @@
+name: Build verification
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-main
+  cancel-in-progress: true
+
+jobs:
+  production-build:
+    name: Verify Netlify production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build production app
+        run: npm run build
+
+      - name: Verify static deployment output
+        run: |
+          test -s dist/index.html
+          test -d dist/js/smartcharts
+          echo "Production output is present and ready for Netlify static hosting."
