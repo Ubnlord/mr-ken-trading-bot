@@ -40,7 +40,7 @@ const Chart = observer(({ show_digits_stats }: { show_digits_stats: boolean }) =
     const settings = {
         assetInformation: false, // ui.is_chart_asset_info_visible,
         countdown: true,
-        isHighestLowestMarkerEnabled: false, // TODO: Pending UI,
+        isHighestLowestMarkerEnabled: true,
         language: common.current_language.toLowerCase(),
         position: ui.is_chart_layout_default ? 'bottom' : 'left',
         theme: ui.is_dark_mode_on ? 'dark' : 'light',
@@ -124,6 +124,9 @@ const Chart = observer(({ show_digits_stats }: { show_digits_stats: boolean }) =
                 isConnectionOpened={is_connection_opened}
                 getMarketsOrder={getMarketsOrder}
                 isLive
+                enableZoom={true}
+                enableScroll={true}
+                startWithDataFitMode={true}
                 leftMargin={80}
                 drawingToolFloatingMenuPosition={isMobile ? { x: 100, y: 100 } : { x: 200, y: 200 }}
             />
