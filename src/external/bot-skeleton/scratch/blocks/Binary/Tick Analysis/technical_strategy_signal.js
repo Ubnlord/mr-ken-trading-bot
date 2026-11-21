@@ -55,5 +55,5 @@ window.Blockly.Blocks.technical_strategy_signal = {
 window.Blockly.JavaScript.javascriptGenerator.forBlock.technical_strategy_signal = block => {
     const strategy = block.getFieldValue('STRATEGY');
     const granularity = block.getFieldValue('GRANULARITY');
-    return [`Bot.getStrategySignal('${strategy}', ${granularity})`, window.Blockly.JavaScript.Order.ATOMIC];
+    return [`Bot.getStrategySignal('${strategy}', ${granularity})`, window.Blockly.JavaScript.javascriptGenerator.ORDER_ATOMIC];
 };
