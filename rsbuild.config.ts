@@ -8,6 +8,7 @@ import { pluginSass } from '@rsbuild/plugin-sass';
 loadEnv({ mode: 'production' });
 
 const isStaticBuild = process.env.NEXT_PUBLIC_APP_BUILD === 'true';
+const isGithubPages = process.env.GITHUB_PAGES === 'true';
 
 // Resolve smartcharts from wherever the package actually lives so the asset
 // copy works both standalone and inside the monorepo (npm workspaces hoist the
@@ -65,7 +66,7 @@ export default defineConfig({
     },
   },
   output: {
-    assetPrefix: isStaticBuild ? '/bot/preview/' : '/',
+    assetPrefix: isGithubPages ? '/mr-ken-trading-bot/' : isStaticBuild ? '/bot/preview/' : '/',
     distPath: {
       root: isStaticBuild ? 'out/preview' : 'dist',
     },
