@@ -85,10 +85,10 @@ bullImpulseSize = close[impulseStart] - close[impulseOrigin]
 bearImpulseSize = close[impulseOrigin] - close[impulseStart]
 bullImpulseOk = bullImpulseSize >= nz(atr[impulseStart]) * impulseAtr
 bearImpulseOk = bearImpulseSize >= nz(atr[impulseStart]) * impulseAtr
-bullRetrace = bullImpulseSize > 0 ? (ta.highest(high[1], patternBars) - ta.lowest(low[1], patternBars)) / bullImpulseSize : 10.0
-bearRetrace = bearImpulseSize > 0 ? (ta.highest(high[1], patternBars) - ta.lowest(low[1], patternBars)) / bearImpulseSize : 10.0
 rangeHigh = ta.highest(high[1], patternBars)
 rangeLow = ta.lowest(low[1], patternBars)
+bullRetrace = bullImpulseSize > 0 ? (high[impulseStart] - rangeLow) / bullImpulseSize : 10.0
+bearRetrace = bearImpulseSize > 0 ? (rangeHigh - low[impulseStart]) / bearImpulseSize : 10.0
 rangeHeight = rangeHigh - rangeLow
 rangeOk = rangeHeight <= atr * maxPatternAtr
 
