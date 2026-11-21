@@ -119,6 +119,7 @@ patternName = bullPattern ? (bullFlag ? "Bull Flag" : "Bull Pennant") : bearPatt
 var int state = 0
 var int direction = 0
 var int breakoutBar = na
+var int retestBar = na
 var float breakoutLevel = na
 var float retestSwing = na
 var float activeUpper = na
@@ -180,12 +181,14 @@ if state == 1 and barstate.isconfirmed
         state := 0
     else if bar_index > breakoutBar and direction == 1 and low <= breakoutLevel + atr * retestAtr and close >= breakoutLevel - atr * retestAtr
         retestSwing := low
+        retestBar := bar_index
         state := 2
     else if bar_index > breakoutBar and direction == -1 and high >= breakoutLevel - atr * retestAtr and close <= breakoutLevel + atr * retestAtr
         retestSwing := high
+        retestBar := bar_index
         state := 2
 
-if state == 2 and barstate.isconfirmed and strategy.position_size == 0
+if state == 2 and barstate.isconfirmed and strategy.position_size == 0 and bar_index > retestBar
     if bar_index - breakoutBar > retestExpiry
         state := 0
     else
