@@ -93,10 +93,12 @@ export const websiteUrl = () => `${location.protocol}//${location.hostname}/`;
 
 export const getUrlBase = (path = '') => {
     const l = window.location;
+    const suffix = /^\//.test(path) ? path : `/${path}`;
 
+    if (process.env.NEXT_PUBLIC_GITHUB_PAGES === 'true') return `/mr-ken-trading-bot${suffix}`;
     if (!/^\/(br_)/.test(l.pathname)) return path;
 
-    return `/${l.pathname.split('/')[1]}${/^\//.test(path) ? path : `/${path}`}`;
+    return `/${l.pathname.split('/')[1]}${suffix}`;
 };
 
 export const removeBranchName = (path = '') => {
