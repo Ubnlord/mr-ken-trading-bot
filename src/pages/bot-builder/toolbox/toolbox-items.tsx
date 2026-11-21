@@ -384,6 +384,7 @@ export const ToolboxItems = () =>
                     <Block type='ticks' />
                     <Block type='lastDigitList' />
                     <Block type='check_direction' />
+                    <Block type='technical_strategy_signal' />
                     <Block type='is_candle_black' />
                     <Block type='read_ohlc'>
                         <Field name='OHLCFIELD_LIST'>open</Field>
