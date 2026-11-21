@@ -104,7 +104,8 @@ bearFlag = upperSlope > 0 and lowerSlope > 0 and math.abs(upperSlope - lowerSlop
 bearPennant = upperSlope > 0 and lowerSlope < 0
 
 // A transparent 0-100 quality score: impulse strength, controlled pullback, compactness, geometry.
-impulseScore = math.min(30.0, math.max(0.0, 30.0 * math.max(bullImpulseSize, bearImpulseSize) / math.max(nz(atr[impulseStart]) * impulseAtr * 1.5, syminfo.mintick)))
+directionalImpulseSize = bullBias ? bullImpulseSize : bearBias ? bearImpulseSize : 0.0
+impulseScore = math.min(30.0, math.max(0.0, 30.0 * directionalImpulseSize / math.max(nz(atr[impulseStart]) * impulseAtr * 1.5, syminfo.mintick)))
 pullbackScore = math.max(0.0, 25.0 * (1.0 - math.min(bullBias ? bullRetrace : bearRetrace, 1.0)))
 compactScore = math.max(0.0, 25.0 * (1.0 - math.min(rangeHeight / math.max(atr * maxPatternAtr, syminfo.mintick), 1.0)))
 geometryScore = (bullFlag or bullPennant or bearFlag or bearPennant) ? 20.0 : 0.0
