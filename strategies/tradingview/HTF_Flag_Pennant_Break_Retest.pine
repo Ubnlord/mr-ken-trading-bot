@@ -45,6 +45,8 @@ useSession = input.bool(false, "Enable session filter", group=G_FILTER)
 tradeSession = input.session("0700-1700", "Trading session (exchange time)", group=G_FILTER)
 assumedSpreadTicks = input.float(2, "Assumed spread (ticks)", minval=0, step=0.1, group=G_FILTER)
 maxSpreadTicks = input.float(5, "Maximum allowed spread (ticks)", minval=0, step=0.1, group=G_FILTER)
+minAtrTicks = input.float(0, "Minimum ATR (ticks) — 0 disables", minval=0, group=G_FILTER)
+maxAtrTicks = input.float(0, "Maximum ATR (ticks) — 0 disables", minval=0, group=G_FILTER)
 showLevels = input.bool(true, "Draw setup and trade levels", group=G_FILTER)
 
 // Higher-timeframe values are sampled from the last completed HTF candle.
@@ -67,6 +69,8 @@ atr = ta.atr(atrLen)
 isH1 = timeframe.isintraday and timeframe.multiplier == 60
 sessionOk = not useSession or not na(time(timeframe.period, tradeSession))
 spreadOk = assumedSpreadTicks <= maxSpreadTicks
+atrTicks = atr / syminfo.mintick
+atrVolatilityOk = (minAtrTicks == 0 or atrTicks >= minAtrTicks) and (maxAtrTicks == 0 or atrTicks <= maxAtrTicks)
 
 // Daily guard resets at the first bar of each exchange day.
 var float dayStartEquity = strategy.equity
@@ -92,8 +96,8 @@ bearRetrace = bearImpulseSize > 0 ? (rangeHigh - low[impulseStart]) / bearImpuls
 rangeHeight = rangeHigh - rangeLow
 rangeOk = rangeHeight <= atr * maxPatternAtr
 
-upperSlope = (ta.linreg(high[1], patternBars, 0) - ta.linreg(high[1], patternBars, patternBars - 1)) / patternBars
-lowerSlope = (ta.linreg(low[1], patternBars, 0) - ta.linreg(low[1], patternBars, patternBars - 1)) / patternBars
+upperSlope = (ta.linreg(high[1], patternBars, 0) - ta.linreg(high[1], patternBars, patternBars - 1)) / (patternBars - 1)
+lowerSlope = (ta.linreg(low[1], patternBars, 0) - ta.linreg(low[1], patternBars, patternBars - 1)) / (patternBars - 1)
 bullFlag = upperSlope < 0 and lowerSlope < 0 and math.abs(upperSlope - lowerSlope) <= atr * parallelTolerance
 bullPennant = upperSlope < 0 and lowerSlope > 0
 bearFlag = upperSlope > 0 and lowerSlope > 0 and math.abs(upperSlope - lowerSlope) <= atr * parallelTolerance
@@ -130,7 +134,7 @@ lowerLine = ta.linreg(low[1], patternBars, 0)
 upperStart = ta.linreg(high[1], patternBars, patternBars - 1)
 lowerStart = ta.linreg(low[1], patternBars, patternBars - 1)
 breakBody = math.abs(close - open)
-canScan = isH1 and barstate.isconfirmed and state == 0 and strategy.position_size == 0 and sessionOk and spreadOk and dailyOk
+canScan = isH1 and barstate.isconfirmed and state == 0 and strategy.position_size == 0 and sessionOk and spreadOk and dailyOk and atrVolatilityOk
 
 if canScan and bullPattern
     activeUpper := upperLine
