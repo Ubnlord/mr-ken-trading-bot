@@ -115,6 +115,110 @@ export default Engine =>
             );
         }
 
+
+        async getStrategySignal(strategy = 'EMA_RSI', granularity = 300) {
+            const validGranularity = [60, 300, 900, 1800, 3600, 14400, 86400].includes(Number(granularity))
+                ? Number(granularity)
+                : 300;
+            const candles = await this.getOhlc({ granularity: validGranularity });
+            // The newest candle may still be forming. Only closed candles are used.
+            const closed = (Array.isArray(candles) ? candles : []).slice(0, -1).filter(candle =>
+                ['open', 'high', 'low', 'close'].every(key => Number.isFinite(Number(candle?.[key])))
+            );
+            if (closed.length < 35) return 'WAIT';
+
+            const closes = closed.map(candle => Number(candle.close));
+            const last = closes.length - 1;
+            const ema = (values, period) => {
+                if (values.length < period) return [];
+                const multiplier = 2 / (period + 1);
+                let value = values.slice(0, period).reduce((sum, item) => sum + item, 0) / period;
+                const output = Array(period - 1).fill(null);
+                output.push(value);
+                for (let i = period; i < values.length; i += 1) {
+                    value = (values[i] - value) * multiplier + value;
+                    output.push(value);
+                }
+                return output;
+            };
+            const rsi = (values, period = 14) => {
+                if (values.length <= period) return [];
+                let gains = 0;
+                let losses = 0;
+                for (let i = 1; i <= period; i += 1) {
+                    const change = values[i] - values[i - 1];
+                    gains += Math.max(change, 0);
+                    losses += Math.max(-change, 0);
+                }
+                let averageGain = gains / period;
+                let averageLoss = losses / period;
+                const output = Array(period).fill(null);
+                const value = () => (averageLoss === 0 ? 100 : 100 - 100 / (1 + averageGain / averageLoss));
+                output.push(value());
+                for (let i = period + 1; i < values.length; i += 1) {
+                    const change = values[i] - values[i - 1];
+                    averageGain = (averageGain * (period - 1) + Math.max(change, 0)) / period;
+                    averageLoss = (averageLoss * (period - 1) + Math.max(-change, 0)) / period;
+                    output.push(value());
+                }
+                return output;
+            };
+            const selected = String(strategy).toUpperCase();
+            const fast = ema(closes, 20);
+            const slow = ema(closes, 50);
+            const strength = rsi(closes, 14);
+            const current = closes[last];
+            const previous = closes[last - 1];
+            if (selected === 'EMA_RSI') {
+                if (fast[last] > slow[last] && strength[last] >= 55) return 'CALL';
+                if (fast[last] < slow[last] && strength[last] <= 45) return 'PUT';
+                return 'WAIT';
+            }
+            if (selected === 'MACD') {
+                const macdLine = closes.map((_, index) => {
+                    const shortValues = ema(closes.slice(0, index + 1), 12);
+                    const longValues = ema(closes.slice(0, index + 1), 26);
+                    return shortValues.at(-1) != null && longValues.at(-1) != null
+                        ? shortValues.at(-1) - longValues.at(-1)
+                        : null;
+                });
+                const signalLine = ema(macdLine.slice(25).map(value => Number(value)), 9);
+                const currentSignal = signalLine.at(-1);
+                const previousSignal = signalLine.at(-2);
+                const currentMacd = macdLine.at(-1);
+                const previousMacd = macdLine.at(-2);
+                if ([currentSignal, previousSignal, currentMacd, previousMacd].some(value => value == null)) return 'WAIT';
+                if (previousMacd <= previousSignal && currentMacd > currentSignal) return 'CALL';
+                if (previousMacd >= previousSignal && currentMacd < currentSignal) return 'PUT';
+                return 'WAIT';
+            }
+            if (selected === 'RSI_REVERSAL') {
+                if (strength[last - 1] < 30 && strength[last] >= 30) return 'CALL';
+                if (strength[last - 1] > 70 && strength[last] <= 70) return 'PUT';
+                return 'WAIT';
+            }
+            if (selected === 'BOLLINGER') {
+                const periodValues = closes.slice(-20);
+                const mean = periodValues.reduce((sum, value) => sum + value, 0) / 20;
+                const deviation = Math.sqrt(periodValues.reduce((sum, value) => sum + (value - mean) ** 2, 0) / 20);
+                const upper = mean + 2 * deviation;
+                const lower = mean - 2 * deviation;
+                if (previous < lower && current >= lower) return 'CALL';
+                if (previous > upper && current <= upper) return 'PUT';
+                return 'WAIT';
+            }
+            if (selected === 'BREAKOUT') {
+                const range = closed.slice(-21, -1);
+                if (range.length < 20) return 'WAIT';
+                const high = Math.max(...range.map(candle => Number(candle.high)));
+                const low = Math.min(...range.map(candle => Number(candle.low)));
+                if (current > high) return 'CALL';
+                if (current < low) return 'PUT';
+                return 'WAIT';
+            }
+            return 'WAIT';
+        }
+
         getOhlcFromEnd(args) {
             const { index: i = 1 } = args || {};
 
