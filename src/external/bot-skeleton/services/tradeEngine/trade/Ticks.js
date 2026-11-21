@@ -116,10 +116,37 @@ export default Engine =>
         }
 
 
+        ensureStrategyCandleMonitor(granularity) {
+            if (!this.strategyCandleMonitors) this.strategyCandleMonitors = new Map();
+            const key = `${this.symbol}:${granularity}`;
+            if (!this.strategyCandleMonitors.has(key)) {
+                const monitorPromise = this.$scope.ticksService
+                    .monitor({
+                        symbol: this.symbol,
+                        granularity,
+                        // TicksService maintains the latest candle cache before notifying listeners.
+                        callback: () => {},
+                    })
+                    .catch(error => {
+                        this.strategyCandleMonitors.delete(key);
+                        throw error;
+                    });
+                this.strategyCandleMonitors.set(key, monitorPromise);
+            }
+            return this.strategyCandleMonitors.get(key);
+        }
+
+        resetStrategyCandleMonitors() {
+            this.strategyCandleMonitors?.clear();
+        }
+
         async getStrategySignal(strategy = 'EMA_RSI', granularity = 300) {
             const validGranularity = [60, 300, 900, 1800, 3600, 14400, 86400].includes(Number(granularity))
                 ? Number(granularity)
                 : 300;
+            // A one-time history request is cached by TicksService. Subscribe to candle
+            // updates so subsequent signal checks use fresh completed candles, not stale history.
+            await this.ensureStrategyCandleMonitor(validGranularity);
             const candles = await this.getOhlc({ granularity: validGranularity });
             const selected = String(strategy).toUpperCase();
             // Deriv returns candles oldest-to-newest; the final candle is still forming.
