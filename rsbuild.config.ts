@@ -46,6 +46,7 @@ export default defineConfig({
         // Marks the static preview build (served under /bot/preview); drives the
         // router basename so React Router resolves under that path prefix.
         NEXT_PUBLIC_APP_BUILD: JSON.stringify(process.env.NEXT_PUBLIC_APP_BUILD ?? ''),
+        NEXT_PUBLIC_GITHUB_PAGES: JSON.stringify(process.env.GITHUB_PAGES ?? ''),
         GD_CLIENT_ID: JSON.stringify(process.env.GD_CLIENT_ID),
         GD_APP_ID: JSON.stringify(process.env.GD_APP_ID),
         GD_API_KEY: JSON.stringify(process.env.GD_API_KEY),
