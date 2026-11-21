@@ -43,6 +43,10 @@ const AppContent = observer(() => {
     const { recovered_transactions, recoverPendingContracts } = transactions;
     const is_subscribed_to_msg_listener = React.useRef(false);
     const msg_listener = React.useRef(null);
+    const activeSymbolsIntervalRef = React.useRef(null);
+    const activeSymbolsTimeoutRef = React.useRef(null);
+    const isMountedRef = React.useRef(true);
+    const isRetrievingActiveSymbolsRef = React.useRef(false);
     const { connectionStatus } = useApiBase();
 
     // Initialize dev mode keyboard shortcuts
@@ -135,30 +139,76 @@ const AppContent = observer(() => {
         });
     };
 
-    const changeActiveSymbolLoadingState = () => {
-        init();
-
-        const retrieveActiveSymbols = () => {
-            const { active_symbols } = ApiHelpers.instance;
-
-            active_symbols.retrieveActiveSymbols(true).then(() => {
-                setIsLoading(false);
-            });
-        };
-
-        if (ApiHelpers?.instance?.active_symbols) {
-            retrieveActiveSymbols();
-        } else {
-            // This is a workaround to fix the issue where the active symbols are not loaded immediately
-            // when the API is initialized. Should be replaced with RxJS pubsub
-            const intervalId = setInterval(() => {
-                if (ApiHelpers?.instance?.active_symbols) {
-                    clearInterval(intervalId);
-                    retrieveActiveSymbols();
-                }
-            }, 1000);
+    const clearActiveSymbolsWaiters = () => {
+        if (activeSymbolsIntervalRef.current) {
+            clearInterval(activeSymbolsIntervalRef.current);
+            activeSymbolsIntervalRef.current = null;
+        }
+        if (activeSymbolsTimeoutRef.current) {
+            clearTimeout(activeSymbolsTimeoutRef.current);
+            activeSymbolsTimeoutRef.current = null;
         }
     };
+
+    const retrieveActiveSymbols = async () => {
+        const activeSymbols = ApiHelpers?.instance?.active_symbols;
+        if (!activeSymbols || isRetrievingActiveSymbolsRef.current) return;
+
+        isRetrievingActiveSymbolsRef.current = true;
+        clearActiveSymbolsWaiters();
+
+        try {
+            await activeSymbols.retrieveActiveSymbols(true);
+        } catch (error) {
+            console.error('[Deriv Bot] Failed to load active symbols:', error);
+            botNotification(
+                localize('The market list could not be loaded. You can refresh the page and try again.'),
+                undefined,
+                { type: 'warning' }
+            );
+        } finally {
+            isRetrievingActiveSymbolsRef.current = false;
+            if (isMountedRef.current) setIsLoading(false);
+        }
+    };
+
+    const changeActiveSymbolLoadingState = () => {
+        clearActiveSymbolsWaiters();
+
+        if (ApiHelpers?.instance?.active_symbols) {
+            void retrieveActiveSymbols();
+            return;
+        }
+
+        // ApiHelpers can become available shortly after the WebSocket opens.
+        // Stop waiting after 15 seconds so a delayed market-data service cannot
+        // leave the entire application hidden behind the initialization loader.
+        activeSymbolsIntervalRef.current = setInterval(() => {
+            if (ApiHelpers?.instance?.active_symbols) {
+                void retrieveActiveSymbols();
+            }
+        }, 1000);
+
+        activeSymbolsTimeoutRef.current = setTimeout(() => {
+            clearActiveSymbolsWaiters();
+            if (isMountedRef.current) {
+                botNotification(
+                    localize('Market data is taking longer than expected. The bot will open, but market lists may be incomplete.'),
+                    undefined,
+                    { type: 'warning' }
+                );
+                setIsLoading(false);
+            }
+        }, 15000);
+    };
+
+    React.useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+            clearActiveSymbolsWaiters();
+        };
+    }, []);
 
     React.useEffect(() => {
         if (is_api_initialized) {
